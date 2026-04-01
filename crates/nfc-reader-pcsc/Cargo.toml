@@ -1,0 +1,9 @@
+[package]
+name = "nfc-reader-pcsc"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+pcsc = "2"
+nfc-reader = { path = "../nfc-reader" }

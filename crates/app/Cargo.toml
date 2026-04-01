@@ -1,0 +1,16 @@
+[package]
+name = "mdoc_reader"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mdoc-core = { path = "../mdoc-core" }
+nfc-reader-pcsc = { path = "../nfc-reader-pcsc" }
+mdoc-reader-transport-ble-winrt = { path = "../mdoc-reader-transport-ble-winrt" }
+mdoc-reader-flow-nfc-ble = { path = "../mdoc-reader-flow-nfc-ble" }
+mdoc-ui-cli = { path = "../mdoc-ui-cli" }
+anyhow = "1"
+tokio = { version = "1", features = ["macros", "rt", "time"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive"] }
+uuid = { version = "1", features = ["std"] }

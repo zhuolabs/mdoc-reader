@@ -1,0 +1,14 @@
+[package]
+name = "mdoc-ui-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+hayro-jpeg2000 = "0.3.3"
+image = "0.25"
+mdoc-core = { path = "../mdoc-core" }
+mdoc-reader-flow = { path = "../mdoc-reader-flow" }
+mdoc-ui = { path = "../mdoc-ui" }
+viuer = { version = "0.11.0", default-features = false, features = ["icy_sixel"] }
+x509-cert = "0.2"

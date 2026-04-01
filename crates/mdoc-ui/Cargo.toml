@@ -1,0 +1,8 @@
+[package]
+name = "mdoc-ui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mdoc-core = { path = "../mdoc-core" }
+mdoc-reader-flow = { path = "../mdoc-reader-flow" }

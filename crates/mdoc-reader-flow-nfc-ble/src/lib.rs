@@ -1,0 +1,271 @@
+use anyhow::{Context, Result};
+use connection_handover::{
+    BleAdStructure, BleLeRole, BleOobRecord,
+    HandoverRequest, HandoverSelect,
+    CONNECTION_HANDOVER_SERVICE_NAME,
+};
+use mdoc_core::{
+    ble_ident, CoseKeyPrivate, DeviceEngagement, DeviceRequest, DeviceResponse, MdocRole,
+    NFCHandover, ReaderEngagement, SessionData, SessionEncryption, SessionEstablishment,
+    SessionTranscript, TaggedCborBytes,
+};
+use mdoc_reader_flow::{EngagementMethod, ReaderFlowEvent, ReaderFlowObserver, TransportKind};
+use mdoc_reader_transport::{BleTransportParams, ReaderTransport, ReaderTransportConnector};
+use minicbor::bytes::ByteVec;
+use nfc_reader::NfcReader;
+use packet_reorder_workaround::{one_swap_reordered_packets, two_inversion_reordered_packets};
+use std::convert::TryFrom;
+use tnep::TnepClient;
+use uuid::Uuid;
+
+mod packet_reorder_workaround;
+
+const SESSION_DATA_STATUS_SESSION_TERMINATION: u64 = 20;
+
+pub async fn read_mdoc<T, F>(
+    reader: &mut T,
+    transport_factory: &F,
+    device_request: &DeviceRequest,
+    service_uuid: Option<Uuid>,
+    observer: Option<&dyn ReaderFlowObserver>,
+) -> Result<DeviceResponse>
+where
+    T: NfcReader + ?Sized,
+    F: ReaderTransportConnector<Params = BleTransportParams> + ?Sized,
+{
+    let service_uuid = service_uuid.unwrap_or_else(Uuid::new_v4);
+
+    notify_event(
+        observer,
+        ReaderFlowEvent::WaitingForEngagement(EngagementMethod::Nfc),
+    );
+
+    let mut nfc = reader
+        .connect(std::time::Duration::from_secs(120))
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("NFC card was not detected within timeout"))?;
+
+    notify_event(
+        observer,
+        ReaderFlowEvent::EngagementConnected(EngagementMethod::Nfc),
+    );
+
+    let mut tnep = TnepClient::new(&mut nfc)
+        .await
+        .context("failed to initialize TNEP client")?;
+    let mut handover_service = tnep
+        .select(CONNECTION_HANDOVER_SERVICE_NAME)
+        .await
+        .context("failed to select TNEP handover service")?;
+
+    let reader_engagement_record = &ReaderEngagement::default();
+    let ble_oob_record = &BleOobRecord {
+        ad_structures: vec![
+            BleAdStructure::LeRole(BleLeRole::OnlyPeripheral),
+            BleAdStructure::CompleteUuid128List(vec![service_uuid]),
+        ],
+    };
+    let handover_request = HandoverRequest::new(ble_oob_record, vec![reader_engagement_record])?;
+
+    let handover_request_message = (&handover_request).into();
+    let handover_select_message = handover_service
+        .exchange(&handover_request_message)
+        .await
+        .context("TNEP handover exchange failed")?;
+
+    let handover_select: HandoverSelect = (&handover_select_message).try_into()
+        .map_err(|_| anyhow::anyhow!("Handover Select message parse failed"))?;
+
+    let (_, device_engagement) = handover_select
+        .find_carrier_auxiliary(
+            |record| BleOobRecord::try_from(record).ok(),
+            |record| DeviceEngagement::try_from(record).ok(),
+        )
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "BleOob carrier with DeviceEngagement auxiliary record not found in Handover Select"
+            )
+        })?;
+
+    let e_device_key = device_engagement.e_device_key();
+    let ident = ble_ident(&e_device_key)?;
+    let e_reader_key_private = CoseKeyPrivate::new()?;
+    let e_reader_key = e_reader_key_private.to_public();
+    let session_transcript = SessionTranscript(
+        Some(device_engagement.into()),
+        e_reader_key.into(),
+        NFCHandover(
+            (&handover_select_message).try_into()?,
+            Some((&handover_request_message).try_into()?),
+        ),
+    );
+
+    let mut transport = transport_factory
+        .connect(BleTransportParams {
+            service_uuid,
+            ident,
+        })
+        .await?;
+    notify_event(
+        observer,
+        ReaderFlowEvent::TransportConnected(TransportKind::Ble),
+    );
+
+    do_reader_flow_with_transport(
+        &mut transport,
+        &e_device_key,
+        &session_transcript,
+        &e_reader_key_private,
+        device_request,
+        observer,
+    )
+    .await
+}
+
+async fn do_reader_flow_with_transport<T>(
+    transport: &mut T,
+    e_device_key_cose: &mdoc_core::CoseKeyPublic,
+    session_transcript: &SessionTranscript,
+    e_reader_key_private: &CoseKeyPrivate,
+    device_request: &DeviceRequest,
+    observer: Option<&dyn ReaderFlowObserver>,
+) -> Result<DeviceResponse>
+where
+    T: ReaderTransport + ?Sized,
+{
+    let e_reader_key_public = e_reader_key_private.to_public();
+    let encoded_device_request = minicbor::to_vec(device_request)?;
+    let session_encryption = SessionEncryption::new(
+        MdocRole::Reader,
+        e_reader_key_private,
+        e_device_key_cose,
+        session_transcript,
+    )?;
+    let encrypt_counter = 1u32;
+    let encrypted_request =
+        session_encryption.encrypt_data(&encoded_device_request, encrypt_counter)?;
+    let session_establishment = SessionEstablishment {
+        e_reader_key: TaggedCborBytes(e_reader_key_public.clone()),
+        data: ByteVec::from(encrypted_request),
+    };
+    let encoded_session_establishment = minicbor::to_vec(session_establishment)?;
+    transport.send(&encoded_session_establishment).await?;
+    notify_event(observer, ReaderFlowEvent::WaitingForUserApproval);
+
+    let session_data_packets = transport.receive_packets().await?;
+    let decoded = try_decode_and_decrypt_session_data(&session_data_packets, &session_encryption)?;
+    if decoded.message.is_empty() {
+        anyhow::bail!("device did not return SessionData");
+    }
+
+    let device_response: DeviceResponse = minicbor::decode(&decoded.message)?;
+    notify_event(observer, ReaderFlowEvent::DeviceResponseReceived);
+
+    if decoded.parsed.status != Some(SESSION_DATA_STATUS_SESSION_TERMINATION) {
+        let termination = minicbor::to_vec(SessionData {
+            data: None,
+            status: Some(SESSION_DATA_STATUS_SESSION_TERMINATION),
+        })?;
+        transport.send(&termination).await?;
+    }
+
+    Ok(device_response)
+}
+
+fn notify_event(observer: Option<&dyn ReaderFlowObserver>, event: ReaderFlowEvent) {
+    if let Some(observer) = observer {
+        observer.on_event(event);
+    }
+}
+
+fn head_hex(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .take(16)
+        .map(|b| format!("{:02X}", b))
+        .collect()
+}
+
+struct DecodedSessionData {
+    parsed: SessionData,
+    message: Vec<u8>,
+}
+
+fn try_decode_and_decrypt_session_data(
+    packets: &[Vec<u8>],
+    session_encryption: &SessionEncryption,
+) -> Result<DecodedSessionData> {
+    let joined = join_packets(packets);
+    if let Ok(message) = decode_and_decrypt_session_data(&joined, session_encryption) {
+        return Ok(message);
+    }
+
+    let packet_len = packets.len();
+    if packet_len < 2 {
+        return decode_and_decrypt_session_data(&joined, session_encryption);
+    }
+
+    for (swap_at, swapped) in one_swap_reordered_packets(packets) {
+        let candidate = join_packets(&swapped);
+        if let Ok(message) = decode_and_decrypt_session_data(&candidate, session_encryption) {
+            eprintln!(
+                "[BLE] session data recovered by swapping packet {} and {}",
+                swap_at,
+                swap_at + 1
+            );
+            return Ok(message);
+        }
+    }
+
+    if packet_len >= 3 {
+        for (permutation, reordered) in two_inversion_reordered_packets(packets) {
+            let candidate = join_packets(&reordered);
+            if let Ok(message) = decode_and_decrypt_session_data(&candidate, session_encryption) {
+                eprintln!(
+                    "[BLE] session data recovered by inversion-2 permutation {:?}",
+                    permutation
+                );
+                return Ok(message);
+            }
+        }
+    }
+
+    decode_and_decrypt_session_data(&joined, session_encryption)
+}
+
+fn decode_and_decrypt_session_data(
+    session_data: &[u8],
+    session_encryption: &SessionEncryption,
+) -> Result<DecodedSessionData> {
+    let parsed: SessionData = minicbor::decode(session_data).with_context(|| {
+        format!(
+            "failed to decode session data: len={} head={}",
+            session_data.len(),
+            head_hex(session_data)
+        )
+    })?;
+
+    let ciphertext = parsed
+        .data
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("session data does not include encrypted data"))?;
+    let message = session_encryption
+        .decrypt_data(ciphertext.as_slice(), 1)
+        .with_context(|| {
+            format!(
+                "failed to decrypt session message: len={} head={}",
+                session_data.len(),
+                head_hex(session_data)
+            )
+        })?;
+    Ok(DecodedSessionData { parsed, message })
+}
+
+fn join_packets(packets: &[Vec<u8>]) -> Vec<u8> {
+    let total_len: usize = packets.iter().map(Vec::len).sum();
+    let mut joined = Vec::with_capacity(total_len);
+    for packet in packets {
+        joined.extend_from_slice(packet);
+    }
+    joined
+}

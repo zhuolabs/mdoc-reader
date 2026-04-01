@@ -1,0 +1,20 @@
+[package]
+name = "mdoc-reader-transport-ble-winrt"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mdoc-reader-transport = { path = "../mdoc-reader-transport" }
+anyhow = "1"
+uuid = "1"
+tokio = { version = "1", features = ["sync", "time", "rt-multi-thread"] }
+futures = "0.3"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Devices_Bluetooth",
+    "Devices_Bluetooth_GenericAttributeProfile",
+    "Foundation",
+    "Foundation_Collections",
+    "Storage_Streams",
+] }

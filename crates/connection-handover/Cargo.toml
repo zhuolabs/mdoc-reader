@@ -1,0 +1,10 @@
+[package]
+name = "connection-handover"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+minicbor = { version = "2.2", features = ["std"] }
+ndef-rs = { version = "0.2.3", features = ["mime"] }
+uuid = { version = "1", features = ["v4"] }

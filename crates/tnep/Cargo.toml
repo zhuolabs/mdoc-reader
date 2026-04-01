@@ -1,0 +1,11 @@
+[package]
+name = "tnep"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+nfc-reader = { path = "../nfc-reader" }
+ndef-rs = "0.2.3"
+thiserror = "1"
+tokio = { version = "1", features = ["time"] }

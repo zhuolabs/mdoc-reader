@@ -1,0 +1,24 @@
+[package]
+name = "mdoc-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
+serde_with = "3"
+minicbor = { version = "2.2", features = ["derive", "std"] }
+uuid = "1"
+hkdf = "0.12"
+sha2 = "0.10"
+ambassador = "0.5.0"
+ndef-rs = "0.2.3"
+p256 = { version = "0.13", features = ["ecdh"] }
+rand_core = "0.6"
+aes-gcm = "0.10"
+x509-cert = "0.2"
+
+[dev-dependencies]
+hex = "0.4"
+tokio = { version = "1", features = ["macros", "rt"] }

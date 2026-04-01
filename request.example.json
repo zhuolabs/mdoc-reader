@@ -1,0 +1,15 @@
+{
+  "docRequests": [
+    {
+      "itemsRequest": {
+        "docType": "org.iso.18013.5.1.mDL",
+        "nameSpaces": {
+          "org.iso.18013.5.1": {
+            "age_over_18": false,
+            "portrait": false
+          }
+        }
+      }
+    }
+  ]
+}
