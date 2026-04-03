@@ -96,7 +96,9 @@ fn render_response_summary(response: &DeviceResponse) {
 }
 
 pub fn render_portrait(portrait: &ElementValue) -> Result<()> {
-    let bytes = portrait.as_bytes().context("portrait element value is not bytes")?;
+    let ElementValue::Bytes(bytes) = portrait else {
+        anyhow::bail!("portrait element value is not bytes");
+    };
     let image = decode_portrait(&bytes)?;
     print_portrait(&image)
 }
@@ -187,19 +189,13 @@ fn print_issuer_signed_data(response: &DeviceResponse) {
 }
 
 fn format_element_value(value: &ElementValue) -> String {
-    if let Ok(v) = value.as_str() {
-        return format!("str({v})");
+    match value {
+        ElementValue::String(v) => format!("str({v})"),
+        ElementValue::Bool(v) => format!("bool({v})"),
+        ElementValue::U64(v) => format!("u64({v})"),
+        ElementValue::Bytes(v) => format!("bytes(len={})", v.len()),
+        ElementValue::RawBytes(v) => format!("cbor({:02X?})", v),
     }
-    if let Ok(v) = value.as_bool() {
-        return format!("bool({v})");
-    }
-    if let Ok(v) = value.as_u64() {
-        return format!("u64({v})");
-    }
-    if let Ok(v) = value.as_bytes() {
-        return format!("bytes(len={})", v.len());
-    }
-    format!("cbor({:02X?})", value.encoded_cbor())
 }
 
 fn print_x509_certificate_info(cert: &X509Certificate) {

@@ -1,6 +1,7 @@
 use crate::cbor_string_map_struct::cbor_string_map_struct;
 use crate::{CoseSign1, TaggedCborBytes};
 use anyhow::Result;
+use minicbor::data::Type;
 use minicbor::bytes::ByteVec;
 use minicbor::{decode, encode, Decoder, Encoder};
 use std::collections::BTreeMap;
@@ -96,34 +97,12 @@ cbor_string_map_struct! {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ElementValue {
-    encoded_cbor: Vec<u8>,
-}
-
-impl ElementValue {
-    pub fn encoded_cbor(&self) -> &[u8] {
-        &self.encoded_cbor
-    }
-
-    pub fn as_str(&self) -> Result<String> {
-        let mut d = Decoder::new(&self.encoded_cbor);
-        Ok(d.str()?.to_string())
-    }
-
-    pub fn as_bool(&self) -> Result<bool> {
-        let mut d = Decoder::new(&self.encoded_cbor);
-        Ok(d.bool()?)
-    }
-
-    pub fn as_u64(&self) -> Result<u64> {
-        let mut d = Decoder::new(&self.encoded_cbor);
-        Ok(d.u64()?)
-    }
-
-    pub fn as_bytes(&self) -> Result<Vec<u8>> {
-        let mut d = Decoder::new(&self.encoded_cbor);
-        Ok(d.bytes()?.to_vec())
-    }
+pub enum ElementValue {
+    String(String),
+    Bool(bool),
+    U64(u64),
+    Bytes(Vec<u8>),
+    RawBytes(Vec<u8>),
 }
 
 impl<C> encode::Encode<C> for ElementValue {
@@ -132,41 +111,45 @@ impl<C> encode::Encode<C> for ElementValue {
         e: &mut Encoder<W>,
         _ctx: &mut C,
     ) -> core::result::Result<(), encode::Error<W::Error>> {
-        e.writer_mut()
-            .write_all(&self.encoded_cbor)
-            .map_err(encode::Error::write)?;
+        match self {
+            Self::String(value) => {
+                e.str(value)?;
+            }
+            Self::Bool(value) => {
+                e.bool(*value)?;
+            }
+            Self::U64(value) => {
+                e.u64(*value)?;
+            }
+            Self::Bytes(value) => {
+                e.bytes(value)?;
+            }
+            Self::RawBytes(value) => {
+                e.writer_mut()
+                    .write_all(value)
+                    .map_err(encode::Error::write)?;
+            }
+        };
         Ok(())
     }
 }
 
 impl<'b, C> decode::Decode<'b, C> for ElementValue {
     fn decode(d: &mut Decoder<'b>, _ctx: &mut C) -> core::result::Result<Self, decode::Error> {
-        let start = d.position();
-        d.skip()?;
-        let end = d.position();
-        Ok(Self {
-            encoded_cbor: d.input()[start..end].to_vec(),
-        })
+        match d.datatype()? {
+            Type::String => Ok(Self::String(d.str()?.to_string())),
+            Type::Bool => Ok(Self::Bool(d.bool()?)),
+            Type::U8 | Type::U16 | Type::U32 | Type::U64 => Ok(Self::U64(d.u64()?)),
+            Type::Bytes => Ok(Self::Bytes(d.bytes()?.to_vec())),
+            _ => {
+                let start = d.position();
+                d.skip()?;
+                let end = d.position();
+                Ok(Self::RawBytes(d.input()[start..end].to_vec()))
+            }
+        }
     }
 }
-
-
-fn decode_string(items: &[TaggedCborBytes<IssuerSignedItem>], key: &str) -> Option<String> {
-    find_element_value(items, key).and_then(|value| value.as_str().ok())
-}
-
-fn decode_bool(items: &[TaggedCborBytes<IssuerSignedItem>], key: &str) -> Option<bool> {
-    find_element_value(items, key).and_then(|value| value.as_bool().ok())
-}
-
-fn decode_u64(items: &[TaggedCborBytes<IssuerSignedItem>], key: &str) -> Option<u64> {
-    find_element_value(items, key).and_then(|value| value.as_u64().ok())
-}
-
-fn decode_bytes(items: &[TaggedCborBytes<IssuerSignedItem>], key: &str) -> Option<Vec<u8>> {
-    find_element_value(items, key).and_then(|value| value.as_bytes().ok())
-}
-
 
 pub fn find_element_value<'a>(
     items: &'a [TaggedCborBytes<IssuerSignedItem>],
@@ -231,8 +214,26 @@ mod tests {
             .unwrap();
 
         assert_eq!(decoded, response);
-        assert_eq!(find_element_value(&signed_data, "family_name").unwrap().as_str().unwrap(), "Mustermann");
-        assert_eq!(find_element_value(&signed_data, "portrait").unwrap().as_bytes().unwrap(), &[1, 2, 3, 4]);
+        assert_eq!(
+            find_element_value(&signed_data, "family_name"),
+            Some(&ElementValue::String("Mustermann".to_string()))
+        );
+        assert_eq!(
+            find_element_value(&signed_data, "portrait"),
+            Some(&ElementValue::Bytes(vec![1, 2, 3, 4]))
+        );
+    }
+
+    #[test]
+    fn decodes_unsupported_element_value_as_raw_bytes() {
+        let mut e = Encoder::new(Vec::new());
+        e.null().unwrap();
+        let encoded_null = e.into_writer();
+
+        let value: ElementValue = minicbor::decode(&encoded_null).unwrap();
+        assert_eq!(value, ElementValue::RawBytes(encoded_null.clone()));
+        let re_encoded = minicbor::to_vec(&value).unwrap();
+        assert_eq!(re_encoded, encoded_null);
     }
 
     fn issuer_signed_item(
@@ -257,34 +258,18 @@ mod tests {
     }
 
     fn string_value(value: &str) -> ElementValue {
-        let mut e = Encoder::new(Vec::new());
-        e.str(value).unwrap();
-        ElementValue {
-            encoded_cbor: e.into_writer(),
-        }
+        ElementValue::String(value.to_string())
     }
 
     fn bool_value(value: bool) -> ElementValue {
-        let mut e = Encoder::new(Vec::new());
-        e.bool(value).unwrap();
-        ElementValue {
-            encoded_cbor: e.into_writer(),
-        }
+        ElementValue::Bool(value)
     }
 
     fn u64_value(value: u64) -> ElementValue {
-        let mut e = Encoder::new(Vec::new());
-        e.u64(value).unwrap();
-        ElementValue {
-            encoded_cbor: e.into_writer(),
-        }
+        ElementValue::U64(value)
     }
 
     fn bytes_value(value: &[u8]) -> ElementValue {
-        let mut e = Encoder::new(Vec::new());
-        e.bytes(value).unwrap();
-        ElementValue {
-            encoded_cbor: e.into_writer(),
-        }
+        ElementValue::Bytes(value.to_vec())
     }
 }
