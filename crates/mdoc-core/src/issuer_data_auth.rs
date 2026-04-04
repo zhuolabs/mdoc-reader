@@ -17,8 +17,11 @@ pub fn verify_issuer_data_auth(
     // TODO: Root CA / chain validation is intentionally skipped for now.
     verify_issuer_auth_signature(issuer_auth)?;
 
-    let mso: MobileSecurityObject = issuer_auth
-        .decode_payload_cbor()
+    let payload = issuer_auth
+        .payload
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("issuerAuth payload is missing"))?;
+    let mso: MobileSecurityObject = minicbor::decode(payload.as_slice())
         .context("failed to decode issuerAuth payload as MobileSecurityObject")?;
 
     verify_doc_type(&mso, document)?;
