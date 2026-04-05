@@ -50,19 +50,19 @@ pub struct HeaderMap {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct X5Chain(Vec<X509Certificate>);
+pub struct X5Chain(Vec<x509_cert::Certificate>);
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ProtectedHeaderMap(pub Option<HeaderMap>);
 
 impl HeaderMap {
-    pub fn document_signer_cert(&self) -> Option<&X509Certificate> {
+    pub fn document_signer_cert(&self) -> Option<&x509_cert::Certificate> {
         self.x5chain
             .as_ref()
             .and_then(|chain| chain.as_slice().first())
     }
 
-    pub fn intermediate_certs(&self) -> &[X509Certificate] {
+    pub fn intermediate_certs(&self) -> &[x509_cert::Certificate] {
         self.x5chain
             .as_deref()
             .map(|chain| chain.get(1..).unwrap_or(&[]))
@@ -71,19 +71,19 @@ impl HeaderMap {
 }
 
 impl X5Chain {
-    pub fn as_slice(&self) -> &[X509Certificate] {
+    pub fn as_slice(&self) -> &[x509_cert::Certificate] {
         &self.0
     }
 }
 
-impl AsRef<[X509Certificate]> for X5Chain {
-    fn as_ref(&self) -> &[X509Certificate] {
+impl AsRef<[x509_cert::Certificate]> for X5Chain {
+    fn as_ref(&self) -> &[x509_cert::Certificate] {
         self.as_slice()
     }
 }
 
 impl core::ops::Deref for X5Chain {
-    type Target = [X509Certificate];
+    type Target = [x509_cert::Certificate];
 
     fn deref(&self) -> &Self::Target {
         self.as_slice()
@@ -114,42 +114,6 @@ pub enum CoseAlg {
     HMAC256256,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct X509Certificate(x509_cert::Certificate);
-
-impl<'a> From<&'a X509Certificate> for &'a x509_cert::Certificate {
-    fn from(value: &'a X509Certificate) -> Self {
-        &value.0
-    }
-}
-
-impl<C> Encode<C> for X509Certificate {
-    fn encode<W: minicbor::encode::Write>(
-        &self,
-        e: &mut Encoder<W>,
-        _ctx: &mut C,
-    ) -> core::result::Result<(), minicbor::encode::Error<W::Error>> {
-        let der = self.0.to_der().map_err(|_| {
-            minicbor::encode::Error::message("failed to encode x5chain certificate to DER")
-        })?;
-        e.bytes(&der)?;
-        Ok(())
-    }
-}
-
-impl<'b, C> Decode<'b, C> for X509Certificate {
-    fn decode(
-        d: &mut Decoder<'b>,
-        _ctx: &mut C,
-    ) -> core::result::Result<Self, minicbor::decode::Error> {
-        let der = d.bytes()?;
-        let cert = x509_cert::Certificate::from_der(der).map_err(|_| {
-            minicbor::decode::Error::message("x5chain certificate is not valid DER X.509")
-        })?;
-        Ok(Self(cert))
-    }
-}
-
 impl<C> Encode<C> for X5Chain {
     fn encode<W: minicbor::encode::Write>(
         &self,
@@ -163,12 +127,20 @@ impl<C> Encode<C> for X5Chain {
                 ));
             }
             1 => {
-                e.encode(&self.0[0])?;
+                let der = self.0[0].to_der().map_err(|_| {
+                    minicbor::encode::Error::message("failed to encode x5chain certificate to DER")
+                })?;
+                e.bytes(&der)?;
             }
             _ => {
                 e.array(self.0.len() as u64)?;
                 for cert in &self.0 {
-                    e.encode(cert)?;
+                    let der = cert.to_der().map_err(|_| {
+                        minicbor::encode::Error::message(
+                            "failed to encode x5chain certificate to DER",
+                        )
+                    })?;
+                    e.bytes(&der)?;
                 }
             }
         };
@@ -183,7 +155,13 @@ impl<'b, C> Decode<'b, C> for X5Chain {
         _ctx: &mut C,
     ) -> core::result::Result<Self, minicbor::decode::Error> {
         match d.datatype()? {
-            minicbor::data::Type::Bytes => Ok(Self(vec![d.decode::<X509Certificate>()?])),
+            minicbor::data::Type::Bytes => {
+                let der = d.bytes()?;
+                let cert = x509_cert::Certificate::from_der(der).map_err(|_| {
+                    minicbor::decode::Error::message("x5chain certificate is not valid DER X.509")
+                })?;
+                Ok(Self(vec![cert]))
+            }
             minicbor::data::Type::Array => {
                 let len = d.array()?.ok_or_else(|| {
                     minicbor::decode::Error::message("x5chain array must be definite-length")
@@ -195,7 +173,13 @@ impl<'b, C> Decode<'b, C> for X5Chain {
                 }
                 let mut certs = Vec::with_capacity(len as usize);
                 for _ in 0..len {
-                    certs.push(d.decode::<X509Certificate>()?);
+                    let der = d.bytes()?;
+                    let cert = x509_cert::Certificate::from_der(der).map_err(|_| {
+                        minicbor::decode::Error::message(
+                            "x5chain certificate is not valid DER X.509",
+                        )
+                    })?;
+                    certs.push(cert);
                 }
                 Ok(Self(certs))
             }
@@ -319,7 +303,7 @@ mod tests {
         let mut e = Encoder::new(Vec::new());
         e.bytes(&[0x30, 0x03, 0x02, 0x01, 0x01]).unwrap();
         let encoded = e.into_writer();
-        let result = minicbor::decode::<X509Certificate>(&encoded);
+        let result = minicbor::decode::<X5Chain>(&encoded);
         assert!(result.is_err());
     }
 

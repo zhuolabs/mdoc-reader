@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use hayro_jpeg2000::{DecodeSettings, Image as Jpeg2000Image};
 use image::{DynamicImage, ImageFormat};
-use mdoc_core::{DeviceResponse, ElementValue, X509Certificate};
+use mdoc_core::{DeviceResponse, ElementValue};
 use mdoc_reader_flow::{EngagementMethod, ReaderFlowEvent, TransportKind};
 use mdoc_ui::{FlowEventUi, MdocResultUi};
 use x509_cert::ext::pkix::name::{DistributionPointName, GeneralName};
@@ -227,8 +227,7 @@ fn format_element_value(value: &ElementValue) -> String {
     format!("cbor({:02X?})", value.raw_cbor_bytes())
 }
 
-fn print_x509_certificate_info(cert: &X509Certificate) {
-    let cert: &x509_cert::Certificate = cert.into();
+fn print_x509_certificate_info(cert: &x509_cert::Certificate) {
     let tbs = &cert.tbs_certificate;
 
     println!("[INFO]     x509.version={:?}", tbs.version);
