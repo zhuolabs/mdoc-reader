@@ -35,8 +35,7 @@ impl SessionEncryption {
             secret_key.to_nonzero_scalar(),
             remote_public_key.as_affine(),
         );
-        let transcript_tag_bytes =
-            minicbor::to_vec(session_transcript)?;
+        let transcript_tag_bytes = minicbor::to_vec(session_transcript)?;
         let salt = Sha256::digest(transcript_tag_bytes);
         let sk_device = derive_session_key(shared_secret.raw_secret_bytes(), &salt, b"SKDevice")?;
         let sk_reader = derive_session_key(shared_secret.raw_secret_bytes(), &salt, b"SKReader")?;
@@ -99,9 +98,7 @@ fn build_iv(iv_identifier: u32, counter: u32) -> [u8; 12] {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        CoseKeyPrivate, CoseKeyPublic, SessionEstablishment, SessionTranscript,
-    };
+    use crate::{CoseKeyPrivate, CoseKeyPublic, SessionEstablishment, SessionTranscript};
     use hex::decode;
     use minicbor::bytes::ByteVec;
     use minicbor::Encoder;

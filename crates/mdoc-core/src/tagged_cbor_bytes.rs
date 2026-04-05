@@ -1,7 +1,7 @@
-use minicbor::{Encode, Encoder, Decode, Decoder};
 use minicbor::data::Tagged;
-use minicbor::decode::{Error as DecodeError};
+use minicbor::decode::Error as DecodeError;
 use minicbor::encode::{Error as EncodeError, Write};
+use minicbor::{Decode, Decoder, Encode, Encoder};
 use std::fmt;
 use std::marker::PhantomData;
 
@@ -138,8 +138,7 @@ where
         self.value().raw_cbor_bytes()
     }
 
-    pub fn decode(&self) -> Result<T, DecodeError>
-    {
+    pub fn decode(&self) -> Result<T, DecodeError> {
         self.value().decode()
     }
 }
@@ -175,6 +174,7 @@ where
 
 pub type ElementValue = CborAny;
 pub type FullDate = Tagged<1004, String>;
+pub type OptionalStringCborBytes = CborBytes<Option<String>>;
 
 #[cfg(test)]
 mod tests {
@@ -259,5 +259,21 @@ mod tests {
         let tagged: TaggedCborBytes<TestStruct> = TaggedCborBytes::from(&raw);
 
         assert_eq!(tagged.decode().unwrap().version, raw.version);
+    }
+
+    #[test]
+    fn optional_string_cbor_bytes_encodes_some_string_as_bstr_wrapped_cbor() {
+        let value: OptionalStringCborBytes = CborBytes::from(&Some("hi".to_string()));
+
+        assert_eq!(value.raw_cbor_bytes(), [0x62, b'h', b'i']);
+        assert_eq!(minicbor::to_vec(&value).unwrap(), [0x43, 0x62, b'h', b'i']);
+    }
+
+    #[test]
+    fn optional_string_cbor_bytes_encodes_none_as_bstr_wrapped_null() {
+        let value: OptionalStringCborBytes = CborBytes::from(&None::<String>);
+
+        assert_eq!(value.raw_cbor_bytes(), [0xf6]);
+        assert_eq!(minicbor::to_vec(&value).unwrap(), [0x41, 0xf6]);
     }
 }
