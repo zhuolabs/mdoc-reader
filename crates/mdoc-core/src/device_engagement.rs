@@ -1,4 +1,4 @@
-use crate::tagged_cbor_bytes::TaggedCborBytes;
+use crate::cbor_bytes::TaggedCborBytes;
 use crate::CoseKeyPublic;
 use anyhow::Result;
 use minicbor::bytes::ByteVec;

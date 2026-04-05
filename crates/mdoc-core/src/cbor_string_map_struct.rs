@@ -58,13 +58,13 @@ macro_rules! cbor_string_map_struct {
                     let key = d.str()?.to_string();
                     match key.as_str() {
                         $(
-                            $rkey => {
-                                $rfield = Some(d.decode()?);
+                        $rkey => {
+                                $rfield = Some(d.decode::<$rty>()?);
                             }
                         )*
                         $(
                             $okey => {
-                                $ofield = Some(d.decode()?);
+                                $ofield = Some(d.decode::<$oty>()?);
                             }
                         )*
                         _ => d.skip()?,

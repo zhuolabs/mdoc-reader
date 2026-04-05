@@ -11,7 +11,7 @@ mod reader_engagement;
 mod session_encryption;
 mod session_messages;
 mod session_transcript;
-mod tagged_cbor_bytes;
+mod cbor_bytes;
 
 pub use cose_key::{CoseKeyPrivate, CoseKeyPublic};
 pub use cose_sign::{CoseAlg, CoseSign1, HeaderMap, ProtectedHeaderMap, X5Chain};
@@ -40,6 +40,6 @@ pub use reader_engagement::{ReaderEngagement, READER_ENGAGEMENT_RECORD_TYPE};
 pub use session_encryption::{MdocRole, SessionEncryption};
 pub use session_messages::{SessionData, SessionEstablishment};
 pub use session_transcript::{NFCHandover, SessionTranscript};
-pub use tagged_cbor_bytes::{
+pub use cbor_bytes::{
     CborAny, CborBytes, ElementValue, FullDate, OptionalStringCborBytes, TaggedCborBytes,
 };
