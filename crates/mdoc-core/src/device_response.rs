@@ -135,7 +135,7 @@ mod tests {
                     ])),
                 },
                 device_signed: DeviceSigned {
-                    name_spaces: TaggedCborBytes(BTreeMap::new()),
+                    name_spaces: TaggedCborBytes::from(&BTreeMap::new()),
                     device_auth: DeviceAuth {
                         device_signature: Some(dummy_cose_sign1()),
                         device_mac: None,
@@ -159,11 +159,11 @@ mod tests {
         assert_eq!(decoded, response);
         assert_eq!(
             find_element_value(&signed_data, "family_name"),
-            Some(&ElementValue::from_string("Mustermann"))
+            Some(ElementValue::from_string("Mustermann"))
         );
         assert_eq!(
             find_element_value(&signed_data, "portrait"),
-            Some(&ElementValue::from_bytes(vec![1, 2, 3, 4]))
+            Some(ElementValue::from_bytes(vec![1, 2, 3, 4]))
         );
     }
 
@@ -183,7 +183,7 @@ mod tests {
         identifier: &str,
         element_value: ElementValue,
     ) -> TaggedCborBytes<IssuerSignedItem> {
-        TaggedCborBytes(IssuerSignedItem {
+        TaggedCborBytes::from(&IssuerSignedItem {
             digest_id: 0,
             random: ByteVec::from(vec![0]),
             element_identifier: identifier.to_string(),
@@ -219,10 +219,10 @@ mod tests {
     fn find_element_value<'a>(
         items: &'a [TaggedCborBytes<IssuerSignedItem>],
         key: &str,
-    ) -> Option<&'a ElementValue> {
-        items
-            .iter()
-            .find(|item| item.0.element_identifier == key)
-            .map(|item| &item.0.element_value)
+    ) -> Option<ElementValue> {
+        items.iter().find_map(|item| {
+            let decoded = item.decode().ok()?;
+            (decoded.element_identifier == key).then_some(decoded.element_value)
+        })
     }
 }

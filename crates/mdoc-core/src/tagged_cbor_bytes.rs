@@ -1,14 +1,53 @@
 use minicbor::bytes::ByteVec;
-use minicbor::data::Tagged;
+use minicbor::data::{Tag, Tagged};
 use minicbor::decode::{Decode, Decoder, Error as DecodeError};
 use minicbor::encode::{Encode, Encoder, Error as EncodeError, Write};
+use std::fmt;
+use std::marker::PhantomData;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TaggedCborBytes<T>(pub T);
+#[derive(Clone, PartialEq, Eq)]
+pub struct TaggedCborBytes<T> {
+    raw_cbor_bytes: ByteVec,
+    marker: PhantomData<fn() -> T>,
+}
 
-impl<T> From<T> for TaggedCborBytes<T> {
-    fn from(value: T) -> Self {
-        Self(value)
+impl<T> TaggedCborBytes<T> {
+    pub fn from_raw_bytes(raw_cbor_bytes: impl Into<ByteVec>) -> Self {
+        Self {
+            raw_cbor_bytes: raw_cbor_bytes.into(),
+            marker: PhantomData,
+        }
+    }
+
+    pub fn raw_cbor_bytes(&self) -> &[u8] {
+        &self.raw_cbor_bytes
+    }
+
+    pub fn decode(&self) -> Result<T, DecodeError>
+    where
+        T: for<'a> Decode<'a, ()>,
+    {
+        minicbor::decode(&self.raw_cbor_bytes)
+            .map_err(|_| DecodeError::message("failed to decode tag24 inner value"))
+    }
+}
+
+impl<T> fmt::Debug for TaggedCborBytes<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TaggedCborBytes")
+            .field("raw_cbor_bytes", &self.raw_cbor_bytes)
+            .finish()
+    }
+}
+
+impl<T> From<&T> for TaggedCborBytes<T>
+where
+    T: Encode<()>,
+{
+    fn from(value: &T) -> Self {
+        Self::from_raw_bytes(
+            minicbor::to_vec(value).expect("encoding TaggedCborBytes inner value should not fail"),
+        )
     }
 }
 
@@ -21,9 +60,9 @@ where
         e: &mut Encoder<W>,
         _ctx: &mut C,
     ) -> Result<(), EncodeError<W::Error>> {
-        let inner = minicbor::to_vec(&self.0)
-            .map_err(|_| EncodeError::message("failed to encode tag24 inner value"))?;
-        Tagged::<24, ByteVec>::from(ByteVec::from(inner)).encode(e, &mut ())
+        e.tag(Tag::new(24))?;
+        e.bytes(&self.raw_cbor_bytes)?;
+        Ok(())
     }
 }
 
@@ -33,9 +72,7 @@ where
 {
     fn decode(d: &mut Decoder<'b>, _ctx: &mut C) -> Result<Self, DecodeError> {
         let tagged: Tagged<24, ByteVec> = d.decode()?;
-        let value = minicbor::decode::<T>((*tagged).as_slice())
-            .map_err(|_| DecodeError::message("failed to decode tag24 inner value"))?;
-        Ok(Self(value))
+        Ok(Self::from_raw_bytes(tagged.into_value()))
     }
 }
 
@@ -67,14 +104,12 @@ mod tests {
 
     #[test]
     fn tagged_cbor_bytes_is_tagged24() -> anyhow::Result<()> {
-        // type Tagged24<T> = Tagged<24, T>;
-
         let raw = TestStruct {
             version: "1.0".to_string(),
         };
 
         let value: Tagged<24, ByteVec> = Tagged::from(ByteVec::from(minicbor::to_vec(&raw)?));
-        let value2: TaggedCborBytes<TestStruct> = TaggedCborBytes::from(raw.clone());
+        let value2: TaggedCborBytes<TestStruct> = TaggedCborBytes::from(&raw);
 
         let encoded = minicbor::to_vec(&value).expect("failed to encode");
         let encoded_value2 = minicbor::to_vec(&value2).expect("failed to encode value2");
@@ -91,7 +126,7 @@ mod tests {
         };
 
         let value2 = TestStruct2 {
-            tagged: TaggedCborBytes::from(raw.clone()),
+            tagged: TaggedCborBytes::from(&raw),
         };
         let value3 = TestStruct3 {
             tagged: Tagged::from(ByteVec::from(minicbor::to_vec(&raw)?)),
@@ -101,5 +136,16 @@ mod tests {
 
         assert_eq!(encoded_value2, encoded_value3);
         Ok(())
+    }
+
+    #[test]
+    fn tagged_cbor_bytes_decodes_on_demand() {
+        let raw = TestStruct {
+            version: "1.0".to_string(),
+        };
+
+        let tagged = TaggedCborBytes::from(&raw);
+
+        assert_eq!(tagged.decode().unwrap().version, raw.version);
     }
 }

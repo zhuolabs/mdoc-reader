@@ -224,8 +224,8 @@ impl DeviceEngagement {
         self.security.0
     }
 
-    pub fn e_device_key(&self) -> CoseKeyPublic {
-        self.security.1 .0.clone()
+    pub fn e_device_key(&self) -> &TaggedCborBytes<CoseKeyPublic> {
+        &self.security.1
     }
 
     pub fn first_ble_service_uuid(&self) -> Option<Uuid> {

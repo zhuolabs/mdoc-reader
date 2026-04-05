@@ -68,8 +68,8 @@ impl DeviceRequestBuilder {
         self
     }
 
-    pub fn device_request_info(mut self, info: DeviceRequestInfo) -> Self {
-        self.device_request_info = Some(TaggedCborBytes(info));
+    pub fn device_request_info(mut self, info: &DeviceRequestInfo) -> Self {
+        self.device_request_info = Some(TaggedCborBytes::from(info));
         self
     }
 
@@ -85,7 +85,7 @@ impl DeviceRequestBuilder {
             name_spaces: name_spaces.clone(),
             request_info: doc_request_info.clone(),
         };
-        let items_request = TaggedCborBytes(items_request);
+        let items_request = TaggedCborBytes::from(&items_request);
         self.doc_requests.push(DocRequest { items_request });
         self
     }

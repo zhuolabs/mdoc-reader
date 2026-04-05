@@ -35,7 +35,7 @@ impl SessionEncryption {
             secret_key.to_nonzero_scalar(),
             remote_public_key.as_affine(),
         );
-        let transcript_tag_bytes = minicbor::to_vec(TaggedCborBytes(session_transcript))?;
+        let transcript_tag_bytes = minicbor::to_vec(TaggedCborBytes::from(session_transcript))?;
         let salt = Sha256::digest(transcript_tag_bytes);
         let sk_device = derive_session_key(shared_secret.raw_secret_bytes(), &salt, b"SKDevice")?;
         let sk_reader = derive_session_key(shared_secret.raw_secret_bytes(), &salt, b"SKReader")?;
@@ -144,7 +144,7 @@ mod tests {
         .unwrap();
 
         let session_establishment = SessionEstablishment {
-            e_reader_key: TaggedCborBytes(e_reader_public.clone()),
+            e_reader_key: TaggedCborBytes::from(&e_reader_public),
             data: ByteVec::from(
                 session
                     .encrypt_data(&decode(DEVICE_REQUEST).unwrap(), 1)
