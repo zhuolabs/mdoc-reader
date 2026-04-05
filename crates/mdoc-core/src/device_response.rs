@@ -159,11 +159,11 @@ mod tests {
         assert_eq!(decoded, response);
         assert_eq!(
             find_element_value(&signed_data, "family_name"),
-            Some(ElementValue::from_string("Mustermann"))
+            Some(encode_element_value("Mustermann"))
         );
         assert_eq!(
             find_element_value(&signed_data, "portrait"),
-            Some(ElementValue::from_bytes(vec![1, 2, 3, 4]))
+            Some(encode_element_value(ByteVec::from(vec![1, 2, 3, 4])))
         );
     }
 
@@ -183,7 +183,7 @@ mod tests {
         identifier: &str,
         element_value: ElementValue,
     ) -> TaggedCborBytes<IssuerSignedItem> {
-        TaggedCborBytes::from(&IssuerSignedItem {
+        crate::TaggedCborBytes::from(&IssuerSignedItem {
             digest_id: 0,
             random: ByteVec::from(vec![0]),
             element_identifier: identifier.to_string(),
@@ -201,19 +201,32 @@ mod tests {
     }
 
     fn string_value(value: &str) -> ElementValue {
-        ElementValue::from_string(value)
+        encode_element_value(value)
     }
 
     fn bool_value(value: bool) -> ElementValue {
-        ElementValue::from_bool(value)
+        encode_element_value(value)
     }
 
     fn u64_value(value: u64) -> ElementValue {
-        ElementValue::from_u64(value)
+        encode_element_value(value)
     }
 
     fn bytes_value(value: &[u8]) -> ElementValue {
-        ElementValue::from_bytes(value.to_vec())
+        encode_element_value(ByteVec::from(value.to_vec()))
+    }
+
+    fn full_date_value(value: &str) -> ElementValue {
+        encode_element_value(minicbor::data::Tagged::<1004, String>::from(
+            value.to_string(),
+        ))
+    }
+
+    fn encode_element_value<T>(value: T) -> ElementValue
+    where
+        T: minicbor::Encode<()>,
+    {
+        ElementValue::new(minicbor::to_vec(value).unwrap())
     }
 
     fn find_element_value<'a>(
@@ -224,5 +237,16 @@ mod tests {
             let decoded = item.decode().ok()?;
             (decoded.element_identifier == key).then_some(decoded.element_value)
         })
+    }
+
+    #[test]
+    fn element_value_alias_supports_generic_decode() {
+        let value = full_date_value("2026-04-04");
+        let tagged = value
+            .decode::<minicbor::data::Tagged<1004, String>>()
+            .unwrap();
+        let parsed = chrono::NaiveDate::parse_from_str(tagged.value(), "%Y-%m-%d").unwrap();
+
+        assert_eq!(parsed, chrono::NaiveDate::from_ymd_opt(2026, 4, 4).unwrap());
     }
 }

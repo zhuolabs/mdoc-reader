@@ -27,7 +27,7 @@ impl SessionEncryption {
         role: MdocRole,
         e_self_private_key: &CoseKeyPrivate,
         remote_public_key: &CoseKeyPublic,
-        session_transcript: &SessionTranscript,
+        session_transcript: &TaggedCborBytes<SessionTranscript>,
     ) -> Result<Self> {
         let secret_key = e_self_private_key.to_secret_key()?;
         let remote_public_key = PublicKey::try_from(remote_public_key)?;
@@ -35,7 +35,8 @@ impl SessionEncryption {
             secret_key.to_nonzero_scalar(),
             remote_public_key.as_affine(),
         );
-        let transcript_tag_bytes = minicbor::to_vec(TaggedCborBytes::from(session_transcript))?;
+        let transcript_tag_bytes =
+            minicbor::to_vec(session_transcript)?;
         let salt = Sha256::digest(transcript_tag_bytes);
         let sk_device = derive_session_key(shared_secret.raw_secret_bytes(), &salt, b"SKDevice")?;
         let sk_reader = derive_session_key(shared_secret.raw_secret_bytes(), &salt, b"SKReader")?;
@@ -99,7 +100,7 @@ fn build_iv(iv_identifier: u32, counter: u32) -> [u8; 12] {
 mod tests {
     use super::*;
     use crate::{
-        CoseKeyPrivate, CoseKeyPublic, SessionEstablishment, SessionTranscript, TaggedCborBytes,
+        CoseKeyPrivate, CoseKeyPublic, SessionEstablishment, SessionTranscript,
     };
     use hex::decode;
     use minicbor::bytes::ByteVec;
@@ -139,7 +140,7 @@ mod tests {
             MdocRole::Reader,
             &e_reader_key,
             &e_device_key,
-            &session_transcript,
+            &TaggedCborBytes::from(&session_transcript),
         )
         .unwrap();
 

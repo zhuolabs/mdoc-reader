@@ -1,7 +1,11 @@
 use anyhow::{Context, Result};
+use chrono::NaiveDate;
 use hayro_jpeg2000::{DecodeSettings, Image as Jpeg2000Image};
 use image::{DynamicImage, ImageFormat};
+use log::debug;
 use mdoc_core::{DeviceResponse, ElementValue};
+use minicbor::bytes::ByteVec;
+use minicbor::data::Tagged;
 use mdoc_reader_flow::{EngagementMethod, ReaderFlowEvent, TransportKind};
 use mdoc_ui::{FlowEventUi, MdocResultUi};
 use x509_cert::ext::pkix::name::{DistributionPointName, GeneralName};
@@ -97,7 +101,7 @@ fn render_response_summary(response: &DeviceResponse) {
 
 pub fn render_portrait(portrait: &ElementValue) -> Result<()> {
     let bytes = portrait
-        .bytes()
+        .decode::<ByteVec>()
         .context("portrait element value is not bytes")?;
     let image = decode_portrait(&bytes)?;
     print_portrait(&image)
@@ -157,6 +161,14 @@ fn print_issuer_signed_data(response: &DeviceResponse) -> Result<()> {
 
     for (doc_idx, doc) in documents.iter().enumerate() {
         println!("[INFO] Document[{doc_idx}] docType={}", doc.doc_type);
+        log_issuer_auth_payload(
+            doc_idx,
+            doc.issuer_signed
+                .issuer_auth
+                .payload
+                .as_deref()
+                .map(|payload| payload.as_slice()),
+        );
         if let Some(x5chain) = &doc.issuer_signed.issuer_auth.unprotected.x5chain {
             println!("[INFO]   issuerAuth.x5chain certs={}", x5chain.len());
 
@@ -208,20 +220,47 @@ fn print_issuer_signed_data(response: &DeviceResponse) -> Result<()> {
     Ok(())
 }
 
+fn log_issuer_auth_payload(doc_idx: usize, payload: Option<&[u8]>) {
+    match payload {
+        Some(payload) => {
+            debug!(
+                "issuerAuth.payload doc={} len={} hex={}",
+                doc_idx,
+                payload.len(),
+                encode_hex(payload)
+            );
+        }
+        None => {
+            debug!("issuerAuth.payload doc={} null", doc_idx);
+        }
+    }
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use std::fmt::Write as _;
+        let _ = write!(&mut out, "{:02x}", byte);
+    }
+    out
+}
+
 fn format_element_value(value: &ElementValue) -> String {
-    if let Some(v) = value.string() {
+    if let Ok(v) = value.decode::<String>() {
         return format!("str({v})");
     }
-    if let Some(v) = value.full_date() {
-        return format!("full-date({})", v.format("%Y-%m-%d"));
+    if let Ok(v) = value.decode::<Tagged<1004, String>>() {
+        if let Ok(date) = NaiveDate::parse_from_str(v.value(), "%Y-%m-%d") {
+            return format!("full-date({})", date.format("%Y-%m-%d"));
+        }
     }
-    if let Some(v) = value.bool() {
+    if let Ok(v) = value.decode::<bool>() {
         return format!("bool({v})");
     }
-    if let Some(v) = value.u64() {
+    if let Ok(v) = value.decode::<u64>() {
         return format!("u64({v})");
     }
-    if let Some(v) = value.bytes() {
+    if let Ok(v) = value.decode::<ByteVec>() {
         return format!("bytes(len={})", v.len());
     }
 

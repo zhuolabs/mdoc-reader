@@ -4,7 +4,6 @@ mod cose_sign;
 mod device_engagement;
 mod device_request;
 mod device_response;
-mod element_value;
 mod ident;
 mod mobile_security_object;
 mod reader_engagement;
@@ -30,7 +29,6 @@ pub use device_response::{
     DEVICE_RESPONSE_STATUS_CBOR_VALIDATION_ERROR, DEVICE_RESPONSE_STATUS_GENERAL_ERROR,
     DEVICE_RESPONSE_STATUS_OK,
 };
-pub use element_value::ElementValue;
 pub use ident::ble_ident;
 pub use mobile_security_object::{
     DataElements, DeviceKeyInfo, DigestIds, KeyAuthorizations, KeyInfo, MobileSecurityObject,
@@ -40,4 +38,4 @@ pub use reader_engagement::{ReaderEngagement, READER_ENGAGEMENT_RECORD_TYPE};
 pub use session_encryption::{MdocRole, SessionEncryption};
 pub use session_messages::{SessionData, SessionEstablishment};
 pub use session_transcript::{NFCHandover, SessionTranscript};
-pub use tagged_cbor_bytes::TaggedCborBytes;
+pub use tagged_cbor_bytes::{CborAny, CborBytes, ElementValue, TaggedCborBytes};

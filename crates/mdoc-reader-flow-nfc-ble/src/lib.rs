@@ -5,9 +5,9 @@ use connection_handover::{
 };
 use log::warn;
 use mdoc_core::{
-    ble_ident, CoseKeyPrivate, CoseKeyPublic, DeviceEngagement, DeviceRequest, DeviceResponse,
-    MdocRole, NFCHandover, ReaderEngagement, SessionData, SessionEncryption, SessionEstablishment,
-    SessionTranscript, TaggedCborBytes,
+    ble_ident, CoseKeyPrivate, CoseKeyPublic, DeviceEngagement, DeviceRequest,
+    DeviceResponse, MdocRole, NFCHandover, ReaderEngagement, SessionData, SessionEncryption,
+    SessionEstablishment, SessionTranscript, TaggedCborBytes,
 };
 use mdoc_reader_flow::{EngagementMethod, ReaderFlowEvent, ReaderFlowObserver, TransportKind};
 use mdoc_reader_transport::{BleTransportParams, ReaderTransport, ReaderTransportConnector};
@@ -91,14 +91,14 @@ where
     let ident = ble_ident(e_device_key)?;
     let e_reader_key_private = CoseKeyPrivate::new()?;
     let e_reader_key = e_reader_key_private.to_public();
-    let session_transcript = SessionTranscript(
-        Some((&device_engagement).into()),
-        (&e_reader_key).into(),
+    let session_transcript = TaggedCborBytes::from(&SessionTranscript(
+        Some(TaggedCborBytes::from(&device_engagement)),
+        TaggedCborBytes::from(&e_reader_key),
         NFCHandover(
             (&handover_select_message).try_into()?,
             Some((&handover_request_message).try_into()?),
         ),
-    );
+    ));
 
     let mut transport = transport_factory
         .connect(BleTransportParams {
@@ -125,7 +125,7 @@ where
 async fn do_reader_flow_with_transport<T>(
     transport: &mut T,
     e_device_key_cose_bytes: &TaggedCborBytes<CoseKeyPublic>,
-    session_transcript: &SessionTranscript,
+    session_transcript: &TaggedCborBytes<SessionTranscript>,
     e_reader_key_private: &CoseKeyPrivate,
     device_request: &DeviceRequest,
     observer: Option<&dyn ReaderFlowObserver>,
@@ -146,7 +146,7 @@ where
     let encrypted_request =
         session_encryption.encrypt_data(&encoded_device_request, encrypt_counter)?;
     let session_establishment = SessionEstablishment {
-        e_reader_key: (&e_reader_key_public).into(),
+        e_reader_key: TaggedCborBytes::from(&e_reader_key_public),
         data: encrypted_request.into(),
     };
     let encoded_session_establishment = minicbor::to_vec(session_establishment)?;

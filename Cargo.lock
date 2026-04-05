@@ -1477,11 +1477,14 @@ name = "mdoc-ui-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "hayro-jpeg2000",
  "image",
+ "log",
  "mdoc-core",
  "mdoc-reader-flow",
  "mdoc-ui",
+ "minicbor",
  "viuer",
  "x509-cert",
 ]
