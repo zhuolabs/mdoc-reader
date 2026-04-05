@@ -3,7 +3,7 @@ use aes_gcm::{Aes256Gcm, Nonce};
 use anyhow::Result;
 use hkdf::Hkdf;
 use p256::ecdh::diffie_hellman;
-use p256::PublicKey;
+use p256::{PublicKey, SecretKey};
 use sha2::{Digest, Sha256};
 
 use crate::cbor_bytes::TaggedCborBytes;
@@ -29,14 +29,13 @@ impl SessionEncryption {
         remote_public_key: &CoseKeyPublic,
         session_transcript: &TaggedCborBytes<SessionTranscript>,
     ) -> Result<Self> {
-        let secret_key = e_self_private_key.to_secret_key()?;
+        let secret_key = SecretKey::try_from(e_self_private_key)?;
         let remote_public_key = PublicKey::try_from(remote_public_key)?;
         let shared_secret = diffie_hellman(
             secret_key.to_nonzero_scalar(),
             remote_public_key.as_affine(),
         );
-        let transcript_tag_bytes = minicbor::to_vec(session_transcript)?;
-        let salt = Sha256::digest(transcript_tag_bytes);
+        let salt = Sha256::digest(minicbor::to_vec(session_transcript)?);
         let sk_device = derive_session_key(shared_secret.raw_secret_bytes(), &salt, b"SKDevice")?;
         let sk_reader = derive_session_key(shared_secret.raw_secret_bytes(), &salt, b"SKReader")?;
         let (sk_self, sk_remote) = match role {

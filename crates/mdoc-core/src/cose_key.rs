@@ -49,7 +49,7 @@ pub struct CoseKeyPrivate {
 
 impl CoseKeyPrivate {
     pub fn new() -> anyhow::Result<CoseKeyPrivate> {
-        Self::try_from(SecretKey::random(&mut OsRng))
+        Self::try_from(&SecretKey::random(&mut OsRng))
     }
 
     pub fn to_public(&self) -> CoseKeyPublic {
@@ -59,11 +59,6 @@ impl CoseKeyPrivate {
             x: self.x.clone(),
             y: self.y.clone(),
         }
-    }
-
-    pub fn to_secret_key(&self) -> anyhow::Result<SecretKey> {
-        SecretKey::from_slice(self.d.as_slice())
-            .map_err(|e| anyhow::anyhow!("invalid P-256 private key: {}", e))
     }
 }
 
@@ -85,14 +80,6 @@ impl TryFrom<&PublicKey> for CoseKeyPublic {
             x: ByteVec::from(x.to_vec()),
             y: ByteVec::from(y.to_vec()),
         })
-    }
-}
-
-impl TryFrom<PublicKey> for CoseKeyPublic {
-    type Error = anyhow::Error;
-
-    fn try_from(public_key: PublicKey) -> Result<Self, Self::Error> {
-        Self::try_from(&public_key)
     }
 }
 
@@ -122,7 +109,7 @@ impl TryFrom<&SecretKey> for CoseKeyPrivate {
     type Error = anyhow::Error;
 
     fn try_from(secret_key: &SecretKey) -> Result<Self, Self::Error> {
-        let public = CoseKeyPublic::try_from(secret_key.public_key())?;
+        let public = CoseKeyPublic::try_from(&secret_key.public_key())?;
         let d = secret_key.to_bytes();
 
         Ok(Self {
@@ -135,10 +122,11 @@ impl TryFrom<&SecretKey> for CoseKeyPrivate {
     }
 }
 
-impl TryFrom<SecretKey> for CoseKeyPrivate {
+impl TryFrom<&CoseKeyPrivate> for SecretKey {
     type Error = anyhow::Error;
 
-    fn try_from(secret_key: SecretKey) -> Result<Self, Self::Error> {
-        Self::try_from(&secret_key)
+    fn try_from(key: &CoseKeyPrivate) -> Result<Self, Self::Error> {
+        SecretKey::from_bytes(key.d.as_slice().into())
+            .map_err(|e| anyhow::anyhow!("invalid P-256 private key: {}", e))
     }
 }

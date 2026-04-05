@@ -98,7 +98,6 @@ fn render_response_summary(response: &DeviceResponse) {
     );
 }
 
-
 pub fn render_portrait(portrait: &ElementValue) -> Result<()> {
     let bytes = portrait
         .decode::<ByteVec>()

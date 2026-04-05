@@ -501,7 +501,7 @@ mod tests {
                 .as_bytes(),
         )
         .unwrap();
-        let cose_key = CoseKeyPublic::try_from(public_key).unwrap();
+        let cose_key = CoseKeyPublic::try_from(&public_key).unwrap();
 
         sign1
             .verify_signature_with_public_key(&cose_key, b"")
