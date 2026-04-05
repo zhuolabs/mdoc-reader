@@ -224,7 +224,7 @@ impl DeviceEngagement {
         self.security.0
     }
 
-    pub fn e_device_key(&self) -> &TaggedCborBytes<CoseKeyPublic> {
+    pub fn e_device_key_bytes(&self) -> &TaggedCborBytes<CoseKeyPublic> {
         &self.security.1
     }
 

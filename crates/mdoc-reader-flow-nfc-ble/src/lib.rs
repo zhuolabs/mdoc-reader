@@ -92,8 +92,8 @@ where
             )
         })?;
 
-    let e_device_key = device_engagement.e_device_key();
-    let ident = ble_ident(e_device_key)?;
+    let e_device_key_bytes = device_engagement.e_device_key_bytes();
+    let ident = ble_ident(e_device_key_bytes)?;
     let e_reader_key_private = CoseKeyPrivate::new()?;
     let e_reader_key = e_reader_key_private.to_public();
     let session_transcript = TaggedCborBytes::from(&SessionTranscript(
@@ -118,7 +118,7 @@ where
 
     do_reader_flow_with_transport(
         &mut transport,
-        e_device_key,
+        &e_device_key_bytes.decode()?,
         &session_transcript,
         &e_reader_key_private,
         device_request,
@@ -129,7 +129,7 @@ where
 
 async fn do_reader_flow_with_transport<T>(
     transport: &mut T,
-    e_device_key_cose_bytes: &TaggedCborBytes<CoseKeyPublic>,
+    e_device_key: &CoseKeyPublic,
     session_transcript: &TaggedCborBytes<SessionTranscript>,
     e_reader_key_private: &CoseKeyPrivate,
     device_request: &DeviceRequest,
@@ -139,12 +139,11 @@ where
     T: ReaderTransport + ?Sized,
 {
     let e_reader_key_public = e_reader_key_private.to_public();
-    let e_device_key = e_device_key_cose_bytes.decode()?;
     let encoded_device_request = minicbor::to_vec(device_request)?;
     let session_encryption = SessionEncryption::new(
         MdocRole::Reader,
         e_reader_key_private,
-        &e_device_key,
+        e_device_key,
         session_transcript,
     )?;
     let encrypt_counter = 1u32;
