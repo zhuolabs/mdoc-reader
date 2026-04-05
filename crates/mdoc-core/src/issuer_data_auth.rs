@@ -396,10 +396,10 @@ mod tests {
     ) -> CoseSign1<TaggedCborBytes<MobileSecurityObject>> {
         let payload = TaggedCborBytes::from(mso);
         let cert = x509_cert::Certificate::from_der(cert_der).unwrap();
-        let protected = ProtectedHeaderMap(Some(HeaderMap {
+        let protected = ProtectedHeaderMap::from(&HeaderMap {
             alg: Some(CoseAlg::ES256),
             x5chain: None,
-        }));
+        });
         let unprotected = HeaderMap {
             alg: None,
             x5chain: Some(X5Chain::from_certificates(vec![cert]).unwrap()),
@@ -431,13 +431,9 @@ mod tests {
     }
 
     fn build_sig_structure_for_test(protected: &ProtectedHeaderMap, payload: &[u8]) -> Vec<u8> {
-        let body_protected = match &protected.0 {
-            None => Vec::new(),
-            Some(map) => minicbor::to_vec(map).unwrap(),
-        };
         minicbor::to_vec(TestSigStructureSignature1 {
             context: "Signature1".to_string(),
-            body_protected: ByteVec::from(body_protected),
+            body_protected: ByteVec::from(protected.raw_cbor_bytes().to_vec()),
             external_aad: ByteVec::from(Vec::<u8>::new()),
             payload: ByteVec::from(payload.to_vec()),
         })

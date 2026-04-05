@@ -193,7 +193,7 @@ mod tests {
 
     fn dummy_cose_sign1() -> CoseSign1<TaggedCborBytes<MobileSecurityObject>> {
         CoseSign1 {
-            protected: crate::ProtectedHeaderMap(None),
+            protected: crate::ProtectedHeaderMap::from(&crate::HeaderMap::default()),
             unprotected: crate::HeaderMap::default(),
             payload: None,
             signature: ByteVec::from(vec![0u8; 64]),
@@ -202,7 +202,7 @@ mod tests {
 
     fn dummy_untyped_cose_sign1() -> CoseSign1 {
         CoseSign1 {
-            protected: crate::ProtectedHeaderMap(None),
+            protected: crate::ProtectedHeaderMap::from(&crate::HeaderMap::default()),
             unprotected: crate::HeaderMap::default(),
             payload: None,
             signature: ByteVec::from(vec![0u8; 64]),
