@@ -6,9 +6,9 @@ use p256::ecdh::diffie_hellman;
 use p256::PublicKey;
 use sha2::{Digest, Sha256};
 
+use crate::cbor_bytes::TaggedCborBytes;
 use crate::cose_key::{CoseKeyPrivate, CoseKeyPublic};
 use crate::session_transcript::SessionTranscript;
-use crate::cbor_bytes::TaggedCborBytes;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MdocRole {

@@ -416,15 +416,18 @@ mod tests {
         let payload = b"\xAA\xBB";
         let encoded = minicbor::to_vec(SigStructureSignature1 {
             context: "Signature1".to_string(),
-            body_protected: ByteVec::from(CborBytes::from(&HeaderMap::default()).raw_cbor_bytes().to_vec()),
+            body_protected: ByteVec::from(
+                CborBytes::from(&HeaderMap::default())
+                    .raw_cbor_bytes()
+                    .to_vec(),
+            ),
             external_aad: ByteVec::from(Vec::<u8>::new()),
             payload: ByteVec::from(payload.to_vec()),
         })
         .unwrap();
         let expected = vec![
             0x84, 0x6A, 0x53, 0x69, 0x67, 0x6E, 0x61, 0x74, 0x75, 0x72, 0x65, 0x31, 0x41, 0xA0,
-            0x40,
-            0x42, 0xAA, 0xBB,
+            0x40, 0x42, 0xAA, 0xBB,
         ];
         assert_eq!(encoded, expected);
     }
@@ -441,20 +444,12 @@ mod tests {
             context: "Signature1".to_string(),
             body_protected: ByteVec::from(sign1.protected.raw_cbor_bytes().to_vec()),
             external_aad: ByteVec::from(Vec::<u8>::new()),
-            payload: ByteVec::from(
-                sign1
-                    .payload
-                    .as_ref()
-                    .unwrap()
-                    .raw_cbor_bytes()
-                    .to_vec(),
-            ),
+            payload: ByteVec::from(sign1.payload.as_ref().unwrap().raw_cbor_bytes().to_vec()),
         })
         .unwrap();
         let expected = vec![
             0x84, 0x6A, 0x53, 0x69, 0x67, 0x6E, 0x61, 0x74, 0x75, 0x72, 0x65, 0x31, 0x41, 0xA0,
-            0x40,
-            0x42, 0x01, 0x02,
+            0x40, 0x42, 0x01, 0x02,
         ];
         assert_eq!(encoded, expected);
     }
