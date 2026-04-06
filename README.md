@@ -1,18 +1,18 @@
-# mdoc_reader
+# mdoc-reader-cli
 
 ## Logging
 
 This workspace now emits logs via the `log` facade.
-Initialize the logger only at binary entry points (for example `crates/app/src/main.rs`) and control verbosity with `RUST_LOG`.
+Initialize the logger only at binary entry points (for example `crates/mdoc-reader-cli/src/main.rs`) and control verbosity with `RUST_LOG`.
 
 Examples:
 
 ```bash
-RUST_LOG=info cargo run -p mdoc_reader -- --config request.example.json
+RUST_LOG=info cargo run -p mdoc-reader-cli -- --config request.example.json
 ```
 
 ```bash
-RUST_LOG=debug cargo run -p mdoc_reader -- --config request.example.json
+RUST_LOG=debug cargo run -p mdoc-reader-cli -- --config request.example.json
 ```
 
 ## Windows BLE packet reordering workaround
