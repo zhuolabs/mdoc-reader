@@ -1,5 +1,5 @@
 [package]
-name = "mdoc_reader"
+name = "mdoc-reader-cli"
 version = "0.1.0"
 edition = "2021"
 
