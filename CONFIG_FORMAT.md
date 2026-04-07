@@ -1,6 +1,6 @@
 # Config format (simple JSON -> DeviceRequest)
 
-`mdoc_reader` app builds `DeviceRequest` from a JSON file that follows `DeviceRequest` / `ItemRequest` naming.
+`mdoc-reader-cli` app builds `DeviceRequest` from a JSON file that follows `DeviceRequest` / `ItemRequest` naming.
 
 ## JSON shape
 
@@ -30,4 +30,4 @@ Example:
 }
 ```
 
-`nameSpaces` is parsed by `serde_json::from_value` into `NameSpaces`, so app module (`crates/app`) is the only place that depends on `serde_json`.
+`nameSpaces` is parsed by `serde_json::from_value` into `NameSpaces`, so app module (`crates/mdoc-reader-cli`) is the only place that depends on `serde_json`.
