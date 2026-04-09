@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Context};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use chrono::Utc;
 use clap::Parser;
 use log::info;
@@ -33,10 +34,11 @@ struct Cli {
 
     #[arg(
         long,
+        alias = "iaca-cert-der",
         value_name = "PATH",
-        help = "Path to IACA certificate DER used for certificate validation"
+        help = "Path to IACA certificate in PEM or DER used for certificate validation"
     )]
-    iaca_cert_der: Option<String>,
+    iaca_cert: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -65,18 +67,24 @@ async fn main() -> anyhow::Result<()> {
 
     let device_request = build_device_request_from_json(&config_json)?;
     info!("DeviceRequest={:?}", device_request);
-    let iaca_cert_der = cli.iaca_cert_der.as_ref().map(load_der_file).transpose()?;
+    let iaca_cert_der = cli.iaca_cert.as_ref().map(load_certificate_file).transpose()?;
 
     let transport_factory = WinRtBleMdocTransportFactory;
     info!("BLE transport factory selected");
     let mut flow = NfcBleDataRetrievalFlow::new(&mut nfc, &transport_factory, cli.service_uuid);
     let result = flow.retrieve_data(&device_request, Some(&observer)).await?;
 
-    let validation = validate_device_response(
-        &result.device_response,
-        &result.session_transcript,
-        iaca_cert_der.as_deref(),
-    );
+    let device_response = result.device_response.clone();
+    let session_transcript = result.session_transcript.clone();
+    let validation = tokio::task::spawn_blocking(move || {
+        validate_device_response(
+            &device_response,
+            &session_transcript,
+            iaca_cert_der.as_deref(),
+        )
+    })
+    .await
+    .context("certificate validation task failed to join")?;
     print_validation_summary(&validation);
     render_device_response(&result.device_response)
 }
@@ -95,9 +103,35 @@ fn load_json_file(path: impl AsRef<Path>) -> anyhow::Result<Value> {
     parse_json(&raw, &path.display().to_string())
 }
 
-fn load_der_file(path: impl AsRef<Path>) -> anyhow::Result<Vec<u8>> {
+fn load_certificate_file(path: impl AsRef<Path>) -> anyhow::Result<Vec<u8>> {
     let path = path.as_ref();
-    fs::read(path).with_context(|| format!("failed to read DER file: {}", path.display()))
+    let bytes =
+        fs::read(path).with_context(|| format!("failed to read certificate file: {}", path.display()))?;
+
+    if bytes.starts_with(b"-----BEGIN ") {
+        decode_pem_certificate(&bytes)
+            .with_context(|| format!("failed to parse PEM certificate: {}", path.display()))
+    } else {
+        Ok(bytes)
+    }
+}
+
+fn decode_pem_certificate(bytes: &[u8]) -> anyhow::Result<Vec<u8>> {
+    let pem = std::str::from_utf8(bytes).context("PEM file is not valid UTF-8 text")?;
+    let begin_marker = "-----BEGIN CERTIFICATE-----";
+    let end_marker = "-----END CERTIFICATE-----";
+    let begin = pem
+        .find(begin_marker)
+        .ok_or_else(|| anyhow!("PEM certificate header not found"))?;
+    let rest = &pem[begin + begin_marker.len()..];
+    let end = rest
+        .find(end_marker)
+        .ok_or_else(|| anyhow!("PEM certificate footer not found"))?;
+    let base64_body: String = rest[..end].lines().map(str::trim).collect();
+
+    STANDARD
+        .decode(base64_body)
+        .context("PEM certificate body is not valid base64")
 }
 
 fn parse_json(raw: &str, source: &str) -> anyhow::Result<Value> {
@@ -292,5 +326,17 @@ fn print_validation_summary(validation: &DeviceResponseValidation) {
                 ),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decode_pem_certificate;
+
+    #[test]
+    fn decode_pem_certificate_extracts_der_body() {
+        let pem = b"-----BEGIN CERTIFICATE-----\nAQIDBA==\n-----END CERTIFICATE-----\n";
+        let der = decode_pem_certificate(pem).expect("PEM should decode");
+        assert_eq!(der, vec![0x01, 0x02, 0x03, 0x04]);
     }
 }

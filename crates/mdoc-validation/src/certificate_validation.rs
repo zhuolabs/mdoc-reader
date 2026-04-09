@@ -1,5 +1,6 @@
 use std::time::SystemTime;
 
+use log::{info, warn};
 use reqwest::blocking::Client;
 use url::Url;
 use x509_parser::extensions::{GeneralName, ParsedExtension};
@@ -21,13 +22,15 @@ pub fn download_iacacert_der(iacacert_url: Url) -> Result<Vec<u8>, ValidationErr
         ));
     }
 
+    info!("certificate_validation: downloading IACA certificate url={iacacert_url}");
+
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| ValidationError::Network(e.to_string()))?;
 
     let response = client
-        .get(iacacert_url)
+        .get(iacacert_url.clone())
         .send()
         .and_then(|resp| resp.error_for_status())
         .map_err(|e| ValidationError::Network(e.to_string()))?;
@@ -35,6 +38,12 @@ pub fn download_iacacert_der(iacacert_url: Url) -> Result<Vec<u8>, ValidationErr
     let bytes = response
         .bytes()
         .map_err(|e| ValidationError::Network(e.to_string()))?;
+
+    info!(
+        "certificate_validation: downloaded IACA certificate url={} bytes={}",
+        iacacert_url,
+        bytes.len()
+    );
 
     Ok(bytes.to_vec())
 }
@@ -47,6 +56,12 @@ pub fn validate_reader_auth_certificate(
     if x5chain.is_empty() {
         return Err(ValidationError::InvalidChain);
     }
+
+    info!(
+        "certificate_validation: start iaca_bytes={} chain_len={}",
+        iacacert_der.len(),
+        x5chain.len()
+    );
 
     let (_, iaca) = x509_parser::certificate::X509Certificate::from_der(iacacert_der)
         .map_err(|e| ValidationError::CertificateParse(e.to_string()))?;
@@ -81,20 +96,31 @@ pub fn validate_reader_auth_certificate(
 
     let mut crl_checked = false;
     if let Some(crl_url) = extract_first_crl_uri(&iaca) {
+        info!("certificate_validation: CRL distribution point found url={crl_url}");
         let crl_der = download_crl_der(&crl_url)?;
         let (_, crl) =
             parse_x509_crl(&crl_der).map_err(|e| ValidationError::CrlParse(e.to_string()))?;
         crl_checked = true;
+        info!(
+            "certificate_validation: CRL parsed url={} bytes={} revoked_entries={}",
+            crl_url,
+            crl_der.len(),
+            crl.iter_revoked_certificates().count()
+        );
 
         let leaf_serial = BigUint::from_bytes_be(certs[0].raw_serial());
         for revoked in crl.iter_revoked_certificates() {
             let serial = BigUint::from_bytes_be(revoked.raw_serial());
             if serial == leaf_serial {
+                warn!("certificate_validation: leaf certificate serial matched CRL entry");
                 return Err(ValidationError::Revoked);
             }
         }
+    } else {
+        info!("certificate_validation: no CRL distribution point found in IACA certificate");
     }
 
+    info!("certificate_validation: completed crl_checked={crl_checked}");
     Ok(CertificateValidationOutcome::Valid { crl_checked })
 }
 
@@ -179,6 +205,8 @@ fn download_crl_der(crl_url: &Url) -> Result<Vec<u8>, ValidationError> {
         ));
     }
 
+    info!("certificate_validation: downloading CRL url={crl_url}");
+
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()
@@ -188,11 +216,26 @@ fn download_crl_der(crl_url: &Url) -> Result<Vec<u8>, ValidationError> {
         .get(crl_url.clone())
         .send()
         .and_then(|resp| resp.error_for_status())
-        .map_err(|_| ValidationError::CrlUnavailable)?;
+        .map_err(|err| {
+            warn!("certificate_validation: CRL download failed url={} error={err}", crl_url);
+            ValidationError::CrlUnavailable
+        })?;
 
     let bytes = response
         .bytes()
-        .map_err(|_| ValidationError::CrlUnavailable)?;
+        .map_err(|err| {
+            warn!(
+                "certificate_validation: CRL response body read failed url={} error={err}",
+                crl_url
+            );
+            ValidationError::CrlUnavailable
+        })?;
+
+    info!(
+        "certificate_validation: downloaded CRL url={} bytes={}",
+        crl_url,
+        bytes.len()
+    );
 
     Ok(bytes.to_vec())
 }
