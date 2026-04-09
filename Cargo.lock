@@ -1738,6 +1738,7 @@ name = "mdoc-reader-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
  "chrono",
  "clap",
  "env_logger",
@@ -1806,6 +1807,7 @@ dependencies = [
 name = "mdoc-validation"
 version = "0.1.0"
 dependencies = [
+ "log",
  "reqwest",
  "thiserror 1.0.69",
  "time",
