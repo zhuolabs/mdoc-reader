@@ -1,4 +1,5 @@
 mod cbor_bytes;
+mod cose_mac;
 mod cbor_string_map_struct;
 mod cose_key;
 mod cose_sign;
@@ -7,6 +8,7 @@ mod device_request;
 mod device_response;
 mod ident;
 mod issuer_data_auth;
+mod mdoc_mac_auth;
 mod mdoc_device_auth;
 mod mobile_security_object;
 mod reader_engagement;
@@ -17,6 +19,7 @@ mod session_transcript;
 pub use cbor_bytes::{
     CborAny, CborBytes, ElementValue, FullDate, OptionalStringCborBytes, TaggedCborBytes,
 };
+pub use cose_mac::{CoseMac0, MacStructure, MAC0_CONTEXT};
 pub use cose_key::{CoseKeyPrivate, CoseKeyPublic};
 pub use cose_sign::{CoseAlg, CoseSign1, HeaderMap, ProtectedHeaderMap, X5Chain};
 pub use device_engagement::{
@@ -35,6 +38,7 @@ pub use ident::ble_ident;
 pub use issuer_data_auth::{
     verify_issuer_data_auth, IssuerDataAuthContext, IssuerDataAuthError, VerifiedMso,
 };
+pub use mdoc_mac_auth::{verify_mdoc_mac_auth, MdocMacAuthContext, MdocMacAuthError};
 pub use mdoc_device_auth::{verify_mdoc_device_auth, MdocDeviceAuthContext, MdocDeviceAuthError};
 pub use mobile_security_object::{
     Certificate, DataElements, DeviceKeyInfo, DigestIds, Identifier, IdentifierListInfo,
@@ -42,6 +46,8 @@ pub use mobile_security_object::{
     ValueDigests, URI,
 };
 pub use reader_engagement::{ReaderEngagement, READER_ENGAGEMENT_RECORD_TYPE};
-pub use session_encryption::{MdocRole, SessionEncryption};
+pub use session_encryption::{
+    derive_emac_key, derive_session_keys, derive_shared_secret, MdocRole, SessionEncryption,
+};
 pub use session_messages::{SessionData, SessionEstablishment};
 pub use session_transcript::{NFCHandover, SessionTranscript};

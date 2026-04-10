@@ -29,15 +29,8 @@ impl SessionEncryption {
         remote_public_key: &CoseKeyPublic,
         session_transcript: &TaggedCborBytes<SessionTranscript>,
     ) -> Result<Self> {
-        let secret_key = SecretKey::try_from(e_self_private_key)?;
-        let remote_public_key = PublicKey::try_from(remote_public_key)?;
-        let shared_secret = diffie_hellman(
-            secret_key.to_nonzero_scalar(),
-            remote_public_key.as_affine(),
-        );
-        let salt = Sha256::digest(minicbor::to_vec(session_transcript)?);
-        let sk_device = derive_session_key(shared_secret.raw_secret_bytes(), &salt, b"SKDevice")?;
-        let sk_reader = derive_session_key(shared_secret.raw_secret_bytes(), &salt, b"SKReader")?;
+        let shared_secret = derive_shared_secret(e_self_private_key, remote_public_key)?;
+        let (sk_device, sk_reader) = derive_session_keys(&shared_secret, session_transcript)?;
         let (sk_self, sk_remote) = match role {
             MdocRole::Device => (sk_device, sk_reader),
             MdocRole::Reader => (sk_reader, sk_device),
@@ -77,6 +70,38 @@ impl SessionEncryption {
             .map_err(|e| anyhow::anyhow!("failed to decrypt data: {}", e))?;
         Ok(plaintext)
     }
+
+}
+
+pub fn derive_shared_secret(
+    e_self_private_key: &CoseKeyPrivate,
+    remote_public_key: &CoseKeyPublic,
+) -> Result<[u8; 32]> {
+    let secret_key = SecretKey::try_from(e_self_private_key)?;
+    let remote_public_key = PublicKey::try_from(remote_public_key)?;
+    let shared_secret = diffie_hellman(
+        secret_key.to_nonzero_scalar(),
+        remote_public_key.as_affine(),
+    );
+    Ok((*shared_secret.raw_secret_bytes()).into())
+}
+
+pub fn derive_session_keys(
+    shared_secret: &[u8; 32],
+    session_transcript: &TaggedCborBytes<SessionTranscript>,
+) -> Result<([u8; 32], [u8; 32])> {
+    let salt = Sha256::digest(minicbor::to_vec(session_transcript)?);
+    let sk_device = derive_session_key(shared_secret, &salt, b"SKDevice")?;
+    let sk_reader = derive_session_key(shared_secret, &salt, b"SKReader")?;
+    Ok((sk_device, sk_reader))
+}
+
+pub fn derive_emac_key(
+    shared_secret: &[u8; 32],
+    session_transcript: &TaggedCborBytes<SessionTranscript>,
+) -> Result<[u8; 32]> {
+    let salt = Sha256::digest(minicbor::to_vec(session_transcript)?);
+    derive_session_key(shared_secret, &salt, b"EMacKey")
 }
 
 fn derive_session_key(shared_secret: &[u8], salt: &[u8], info: &[u8]) -> Result<[u8; 32]> {

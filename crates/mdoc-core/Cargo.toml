@@ -9,6 +9,7 @@ minicbor = { version = "2.2", features = ["derive", "std"] }
 uuid = "1"
 hkdf = "0.12"
 sha2 = "0.10"
+hmac = "0.12"
 ambassador = "0.5.0"
 ndef-rs = "0.2.3"
 p256 = { version = "0.13", features = ["ecdh"] }

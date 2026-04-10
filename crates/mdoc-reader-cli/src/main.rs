@@ -4,8 +4,8 @@ use chrono::Utc;
 use clap::Parser;
 use log::info;
 use mdoc_core::{
-    DeviceRequest, DeviceResponse, IssuerDataAuthContext, MdocDeviceAuthContext, NameSpaces,
-    SessionTranscript, TaggedCborBytes, VerifiedMso,
+    CoseKeyPrivate, DeviceRequest, DeviceResponse, IssuerDataAuthContext, MdocDeviceAuthContext,
+    MdocMacAuthContext, NameSpaces, SessionTranscript, TaggedCborBytes, VerifiedMso,
 };
 use mdoc_data_retrieval_flow::DataRetrievalFlow;
 use mdoc_data_retrieval_flow_nfc_ble::NfcBleDataRetrievalFlow;
@@ -76,14 +76,19 @@ async fn main() -> anyhow::Result<()> {
     let transport_factory = WinRtBleMdocTransportFactory;
     info!("BLE transport factory selected");
     let mut flow = NfcBleDataRetrievalFlow::new(&mut nfc, &transport_factory, cli.service_uuid);
-    let result = flow.retrieve_data(&device_request, Some(&observer)).await?;
+    let e_reader_key_private = CoseKeyPrivate::new()?;
+    let result = flow
+        .retrieve_data(&device_request, &e_reader_key_private, Some(&observer))
+        .await?;
 
     let device_response = result.device_response.clone();
     let session_transcript = result.session_transcript.clone();
+    let shared_secret = result.shared_secret;
     let validation = tokio::task::spawn_blocking(move || {
         validate_device_response(
             &device_response,
             &session_transcript,
+            &shared_secret,
             iaca_cert_der.as_deref(),
         )
     })
@@ -186,6 +191,7 @@ fn build_namespaces_from_json(items_request: &Value, idx: usize) -> anyhow::Resu
 fn validate_device_response(
     response: &DeviceResponse,
     session_transcript: &TaggedCborBytes<SessionTranscript>,
+    shared_secret: &[u8; 32],
     iaca_cert_der: Option<&[u8]>,
 ) -> DeviceResponseValidation {
     let documents = response
@@ -207,6 +213,10 @@ fn validate_device_response(
                             })
                         });
 
+                    let certificate_validation = iaca_cert_der.map(|der| {
+                        validate_certificate_chain_with_iaca(&doc.issuer_signed.issuer_auth, der)
+                    });
+
                     let cose_sign1 = issuer_cert.as_ref().map_or_else(
                         |err| Err(err.clone()),
                         |cert| {
@@ -225,20 +235,40 @@ fn validate_device_response(
                         },
                     );
                     let mdoc_device_auth = match &issuer_data_auth {
-                        Ok(verified_mso) => mdoc_core::verify_mdoc_device_auth(
-                            doc,
-                            &MdocDeviceAuthContext {
-                                session_transcript: session_transcript.clone(),
-                                verified_mso: verified_mso.clone(),
-                            },
-                        )
-                        .map_err(|err| err.to_string()),
+                        Ok(verified_mso) => match (
+                            doc.device_signed.device_auth.device_signature.as_ref(),
+                            doc.device_signed.device_auth.device_mac.as_ref(),
+                        ) {
+                            (Some(_), None) => mdoc_core::verify_mdoc_device_auth(
+                                doc,
+                                &MdocDeviceAuthContext {
+                                    session_transcript: session_transcript.clone(),
+                                    verified_mso: verified_mso.clone(),
+                                },
+                            )
+                            .map_err(|err| err.to_string()),
+                            (None, Some(_)) => mdoc_core::verify_mdoc_mac_auth(
+                                doc,
+                                &MdocMacAuthContext {
+                                    session_transcript: session_transcript.clone(),
+                                    verified_mso: verified_mso.clone(),
+                                    shared_secret: *shared_secret,
+                                },
+                            )
+                            .map_err(|err| err.to_string()),
+                            _ => mdoc_core::verify_mdoc_device_auth(
+                                doc,
+                                &MdocDeviceAuthContext {
+                                    session_transcript: session_transcript.clone(),
+                                    verified_mso: verified_mso.clone(),
+                                },
+                            )
+                            .map_err(|err| err.to_string()),
+                        },
                         Err(err) => Err(err.to_string()),
                     };
                     let issuer_data_auth = issuer_data_auth.map_err(|err| err.to_string());
-                    let certificate_validation = iaca_cert_der.map(|der| {
-                        validate_certificate_chain_with_iaca(&doc.issuer_signed.issuer_auth, der)
-                    });
+
 
                     DocumentValidation {
                         doc_type: doc.doc_type.clone(),

@@ -5,9 +5,9 @@ use connection_handover::{
     CONNECTION_HANDOVER_SERVICE_NAME,
 };
 use mdoc_core::{
-    ble_ident, CoseKeyPrivate, CoseKeyPublic, DeviceEngagement, DeviceRequest, MdocRole,
-    NFCHandover, ReaderEngagement, SessionData, SessionEncryption, SessionEstablishment,
-    SessionTranscript, TaggedCborBytes,
+    ble_ident, derive_shared_secret, CoseKeyPrivate, CoseKeyPublic, DeviceEngagement,
+    DeviceRequest, MdocRole, NFCHandover, ReaderEngagement, SessionData, SessionEncryption,
+    SessionEstablishment, SessionTranscript, TaggedCborBytes,
 };
 use mdoc_data_retrieval_flow::{
     DataRetrievalFlow, DataRetrievalFlowEvent, DataRetrievalFlowObserver, DataRetrievalResult,
@@ -59,12 +59,14 @@ where
     async fn retrieve_data(
         &mut self,
         device_request: &DeviceRequest,
+        e_reader_key_private: &CoseKeyPrivate,
         observer: Option<&dyn DataRetrievalFlowObserver>,
     ) -> Result<DataRetrievalResult> {
         read_mdoc(
             self.reader,
             self.transport_factory,
             device_request,
+            e_reader_key_private,
             self.service_uuid,
             observer,
         )
@@ -76,6 +78,7 @@ pub async fn read_mdoc<T, F>(
     reader: &mut T,
     transport_factory: &F,
     device_request: &DeviceRequest,
+    e_reader_key_private: &CoseKeyPrivate,
     service_uuid: Option<Uuid>,
     observer: Option<&dyn DataRetrievalFlowObserver>,
 ) -> Result<DataRetrievalResult>
@@ -140,7 +143,6 @@ where
 
     let e_device_key_bytes = device_engagement.e_device_key_bytes();
     let ident = ble_ident(e_device_key_bytes)?;
-    let e_reader_key_private = CoseKeyPrivate::new()?;
     let e_reader_key = e_reader_key_private.to_public();
     let session_transcript = TaggedCborBytes::from(&SessionTranscript(
         Some(TaggedCborBytes::from(&device_engagement)),
@@ -166,7 +168,7 @@ where
         &mut transport,
         &e_device_key_bytes.decode()?,
         &session_transcript,
-        &e_reader_key_private,
+        e_reader_key_private,
         device_request,
         observer,
     )
@@ -186,6 +188,7 @@ where
 {
     let e_reader_key_public = e_reader_key_private.to_public();
     let encoded_device_request = minicbor::to_vec(device_request)?;
+    let shared_secret = derive_shared_secret(e_reader_key_private, e_device_key)?;
     let session_encryption = SessionEncryption::new(
         MdocRole::Reader,
         e_reader_key_private,
@@ -226,6 +229,7 @@ where
     Ok(DataRetrievalResult {
         device_response,
         session_transcript: session_transcript.clone(),
+        shared_secret,
     })
 }
 
