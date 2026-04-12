@@ -70,7 +70,6 @@ impl SessionEncryption {
             .map_err(|e| anyhow::anyhow!("failed to decrypt data: {}", e))?;
         Ok(plaintext)
     }
-
 }
 
 pub fn derive_shared_secret(

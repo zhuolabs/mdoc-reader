@@ -83,12 +83,11 @@ async fn main() -> anyhow::Result<()> {
 
     let device_response = result.device_response.clone();
     let session_transcript = result.session_transcript.clone();
-    let shared_secret = result.shared_secret;
     let validation = tokio::task::spawn_blocking(move || {
         validate_device_response(
             &device_response,
+            &e_reader_key_private,
             &session_transcript,
-            &shared_secret,
             iaca_cert_der.as_deref(),
         )
     })
@@ -190,8 +189,8 @@ fn build_namespaces_from_json(items_request: &Value, idx: usize) -> anyhow::Resu
 
 fn validate_device_response(
     response: &DeviceResponse,
+    e_self_private_key: &CoseKeyPrivate,
     session_transcript: &TaggedCborBytes<SessionTranscript>,
-    shared_secret: &[u8; 32],
     iaca_cert_der: Option<&[u8]>,
 ) -> DeviceResponseValidation {
     let documents = response
@@ -249,10 +248,10 @@ fn validate_device_response(
                             .map_err(|err| err.to_string()),
                             (None, Some(_)) => mdoc_core::verify_mdoc_mac_auth(
                                 doc,
+                                e_self_private_key,
                                 &MdocMacAuthContext {
                                     session_transcript: session_transcript.clone(),
                                     verified_mso: verified_mso.clone(),
-                                    shared_secret: *shared_secret,
                                 },
                             )
                             .map_err(|err| err.to_string()),
@@ -268,7 +267,6 @@ fn validate_device_response(
                         Err(err) => Err(err.to_string()),
                     };
                     let issuer_data_auth = issuer_data_auth.map_err(|err| err.to_string());
-
 
                     DocumentValidation {
                         doc_type: doc.doc_type.clone(),

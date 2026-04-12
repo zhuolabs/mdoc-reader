@@ -8,8 +8,8 @@ use crate::mdoc_device_auth::{
     build_device_authentication_bytes, verify_key_authorizations, MdocDeviceAuthError,
 };
 use crate::{
-    derive_emac_key, CoseAlg, CoseMac0, MacStructure, MdocDocument, SessionTranscript,
-    TaggedCborBytes, VerifiedMso, MAC0_CONTEXT,
+    derive_emac_key, derive_shared_secret, CoseAlg, CoseKeyPrivate, CoseMac0, MacStructure,
+    MdocDocument, SessionTranscript, TaggedCborBytes, VerifiedMso, MAC0_CONTEXT,
 };
 
 type HmacSha256 = Hmac<Sha256>;
@@ -18,7 +18,6 @@ type HmacSha256 = Hmac<Sha256>;
 pub struct MdocMacAuthContext {
     pub session_transcript: TaggedCborBytes<SessionTranscript>,
     pub verified_mso: VerifiedMso,
-    pub shared_secret: [u8; 32],
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,8 +26,13 @@ pub enum MdocMacAuthError {
     DeviceAuthenticationEncodingFailed(String),
     DeviceAuthPayloadMismatch,
     DeviceMacInvalid(String),
-    UnauthorizedDeviceNamespace { namespace: String },
-    UnauthorizedDeviceSignedElement { namespace: String, element_identifier: String },
+    UnauthorizedDeviceNamespace {
+        namespace: String,
+    },
+    UnauthorizedDeviceSignedElement {
+        namespace: String,
+        element_identifier: String,
+    },
 }
 
 impl fmt::Display for MdocMacAuthError {
@@ -62,6 +66,7 @@ impl std::error::Error for MdocMacAuthError {}
 
 pub fn verify_mdoc_mac_auth(
     doc: &MdocDocument,
+    e_reader_key_private: &CoseKeyPrivate,
     ctx: &MdocMacAuthContext,
 ) -> Result<(), MdocMacAuthError> {
     let device_auth = &doc.device_signed.device_auth;
@@ -78,7 +83,13 @@ pub fn verify_mdoc_mac_auth(
         &doc.device_signed.name_spaces,
     )
     .map_err(map_device_auth_error)?;
-    let emac_key = derive_emac_key(&ctx.shared_secret, &ctx.session_transcript)
+    let shared_secret = derive_shared_secret(
+        e_reader_key_private,
+        &ctx.verified_mso.mso.device_key_info.device_key,
+    )
+    .map_err(|err| MdocMacAuthError::DeviceMacInvalid(err.to_string()))?;
+
+    let emac_key = derive_emac_key(&shared_secret, &ctx.session_transcript)
         .map_err(|err| MdocMacAuthError::DeviceMacInvalid(err.to_string()))?;
 
     verify_device_mac(device_mac, &emac_key, &expected_payload)?;
@@ -113,7 +124,7 @@ fn verify_device_mac(
     }
 
     if let Some(payload) = mac0.payload.as_ref() {
-        if payload.as_slice() != expected_payload {
+        if payload.raw_cbor_bytes() != expected_payload {
             return Err(MdocMacAuthError::DeviceAuthPayloadMismatch);
         }
     }
@@ -151,7 +162,9 @@ fn map_device_auth_error(err: MdocDeviceAuthError) -> MdocMacAuthError {
         MdocDeviceAuthError::DeviceAuthenticationEncodingFailed(message) => {
             MdocMacAuthError::DeviceAuthenticationEncodingFailed(message)
         }
-        MdocDeviceAuthError::DeviceAuthPayloadMismatch => MdocMacAuthError::DeviceAuthPayloadMismatch,
+        MdocDeviceAuthError::DeviceAuthPayloadMismatch => {
+            MdocMacAuthError::DeviceAuthPayloadMismatch
+        }
         MdocDeviceAuthError::UnauthorizedDeviceNamespace { namespace } => {
             MdocMacAuthError::UnauthorizedDeviceNamespace { namespace }
         }

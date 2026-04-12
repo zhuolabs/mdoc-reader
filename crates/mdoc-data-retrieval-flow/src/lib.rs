@@ -1,5 +1,7 @@
 use async_trait::async_trait;
-use mdoc_core::{CoseKeyPrivate, DeviceRequest, DeviceResponse, SessionTranscript, TaggedCborBytes};
+use mdoc_core::{
+    CoseKeyPrivate, DeviceRequest, DeviceResponse, SessionTranscript, TaggedCborBytes,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EngagementMethod {
@@ -30,7 +32,6 @@ pub trait DataRetrievalFlowObserver {
 pub struct DataRetrievalResult {
     pub device_response: DeviceResponse,
     pub session_transcript: TaggedCborBytes<SessionTranscript>,
-    pub shared_secret: [u8; 32],
 }
 
 #[async_trait(?Send)]

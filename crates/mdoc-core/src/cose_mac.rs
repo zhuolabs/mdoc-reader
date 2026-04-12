@@ -1,19 +1,22 @@
 use minicbor::bytes::ByteVec;
 use minicbor::{Decode, Encode};
 
-use crate::{HeaderMap, ProtectedHeaderMap};
+use crate::{CborAny, CborBytes, HeaderMap, ProtectedHeaderMap};
 
 pub const MAC0_CONTEXT: &str = "MAC0";
 
 #[derive(Debug, Clone, PartialEq, Eq, Decode, Encode)]
 #[cbor(array)]
-pub struct CoseMac0 {
+pub struct CoseMac0<T = CborAny>
+where
+    T: Encode<()> + for<'a> Decode<'a, ()>,
+{
     #[n(0)]
     pub protected: ProtectedHeaderMap,
     #[n(1)]
     pub unprotected: HeaderMap,
     #[n(2)]
-    pub payload: Option<ByteVec>,
+    pub payload: Option<CborBytes<T>>,
     #[n(3)]
     pub tag: ByteVec,
 }

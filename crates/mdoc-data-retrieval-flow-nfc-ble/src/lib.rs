@@ -5,9 +5,9 @@ use connection_handover::{
     CONNECTION_HANDOVER_SERVICE_NAME,
 };
 use mdoc_core::{
-    ble_ident, derive_shared_secret, CoseKeyPrivate, CoseKeyPublic, DeviceEngagement,
-    DeviceRequest, MdocRole, NFCHandover, ReaderEngagement, SessionData, SessionEncryption,
-    SessionEstablishment, SessionTranscript, TaggedCborBytes,
+    ble_ident, CoseKeyPrivate, CoseKeyPublic, DeviceEngagement, DeviceRequest, MdocRole,
+    NFCHandover, ReaderEngagement, SessionData, SessionEncryption, SessionEstablishment,
+    SessionTranscript, TaggedCborBytes,
 };
 use mdoc_data_retrieval_flow::{
     DataRetrievalFlow, DataRetrievalFlowEvent, DataRetrievalFlowObserver, DataRetrievalResult,
@@ -188,7 +188,6 @@ where
 {
     let e_reader_key_public = e_reader_key_private.to_public();
     let encoded_device_request = minicbor::to_vec(device_request)?;
-    let shared_secret = derive_shared_secret(e_reader_key_private, e_device_key)?;
     let session_encryption = SessionEncryption::new(
         MdocRole::Reader,
         e_reader_key_private,
@@ -229,7 +228,6 @@ where
     Ok(DataRetrievalResult {
         device_response,
         session_transcript: session_transcript.clone(),
-        shared_secret,
     })
 }
 

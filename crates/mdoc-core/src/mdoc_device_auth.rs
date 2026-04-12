@@ -19,8 +19,13 @@ pub enum MdocDeviceAuthError {
     DeviceAuthenticationEncodingFailed(String),
     DeviceAuthPayloadMismatch,
     DeviceSignatureInvalid(String),
-    UnauthorizedDeviceNamespace { namespace: String },
-    UnauthorizedDeviceSignedElement { namespace: String, element_identifier: String },
+    UnauthorizedDeviceNamespace {
+        namespace: String,
+    },
+    UnauthorizedDeviceSignedElement {
+        namespace: String,
+        element_identifier: String,
+    },
 }
 
 impl fmt::Display for MdocDeviceAuthError {
@@ -93,11 +98,8 @@ pub(crate) fn build_device_authentication_bytes(
     doc_type: &str,
     device_name_spaces: &TaggedCborBytes<DeviceNameSpaces>,
 ) -> Result<Vec<u8>, MdocDeviceAuthError> {
-    let device_authentication = build_device_authentication(
-        session_transcript,
-        doc_type,
-        device_name_spaces,
-    )?;
+    let device_authentication =
+        build_device_authentication(session_transcript, doc_type, device_name_spaces)?;
     let tagged = TaggedCborBytes::from(&device_authentication);
     minicbor::to_vec(&tagged)
         .map_err(|err| MdocDeviceAuthError::DeviceAuthenticationEncodingFailed(err.to_string()))
@@ -138,9 +140,10 @@ pub(crate) fn verify_key_authorizations(
         .as_ref()
         .cloned()
         .unwrap_or_default();
-    let device_name_spaces = doc.device_signed.name_spaces.decode().map_err(|err| {
-        MdocDeviceAuthError::DeviceAuthenticationEncodingFailed(err.to_string())
-    })?;
+    let device_name_spaces =
+        doc.device_signed.name_spaces.decode().map_err(|err| {
+            MdocDeviceAuthError::DeviceAuthenticationEncodingFailed(err.to_string())
+        })?;
 
     for (namespace, items) in device_name_spaces {
         let namespace_allowed = allowed_namespaces.contains(&namespace);
