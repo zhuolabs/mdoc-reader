@@ -42,14 +42,18 @@ Implemented in this repository:
   - HTTPS-only download.
   - `reqwest` + `rustls` + native roots.
   - timeout and status checks.
-- `validate_reader_auth_certificate(iacacert_der, x5chain, now)`
+- `extract_crl_distribution_point(iacacert_der: &[u8]) -> Result<Option<Url>, ValidationError>`
+  - Parses the IACA certificate and extracts the first CRL distribution point URI.
+- `download_crl_der(crl_url: &Url) -> Result<Vec<u8>, ValidationError>`
+  - HTTPS-only CRL download.
+- `validate_reader_auth_certificate(iacacert_der, x5chain, crl_der, now)`
   - DER parse for IACA + chain certificates.
   - validity period checks (`notBefore` / `notAfter`).
   - chain linkage checks via issuer/subject matching.
   - basic constraints checks (CA/non-CA consistency).
   - leaf keyUsage check (`digitalSignature`) when extension exists.
-  - CRL Distribution Point extraction from IACA.
-  - CRL download + parse + leaf serial revocation match check.
+  - Uses a caller-provided CRL when available.
+  - CRL parse + leaf serial revocation match check.
 
 ### Not implemented yet (deferred)
 
@@ -97,7 +101,7 @@ Implement MSO revocation logic based on section 12.3.6 using `VerifiedMso` and `
 ## Dependency notes
 
 Current dependencies:
-- `reqwest` (`blocking`, `rustls-tls`, `rustls-tls-native-roots`)
+- `reqwest` (`rustls-tls`, `rustls-tls-native-roots`)
 - `x509-parser`
 - `thiserror`
 - `url`
@@ -141,4 +145,3 @@ Future candidates (if needed):
   - certificate-source selection behavior for status responses
 - Cross-platform checks
   - HTTPS native root behavior on Windows
-

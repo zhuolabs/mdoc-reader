@@ -81,18 +81,13 @@ async fn main() -> anyhow::Result<()> {
         .retrieve_data(&device_request, &e_reader_key_private, Some(&observer))
         .await?;
 
-    let device_response = result.device_response.clone();
-    let session_transcript = result.session_transcript.clone();
-    let validation = tokio::task::spawn_blocking(move || {
-        validate_device_response(
-            &device_response,
-            &e_reader_key_private,
-            &session_transcript,
-            iaca_cert_der.as_deref(),
-        )
-    })
-    .await
-    .context("certificate validation task failed to join")?;
+    let validation = validate_device_response(
+        &result.device_response,
+        &e_reader_key_private,
+        &result.session_transcript,
+        iaca_cert_der.as_deref(),
+    )
+    .await;
     print_validation_summary(&validation);
     render_device_response(&result.device_response)
 }
@@ -187,103 +182,100 @@ fn build_namespaces_from_json(items_request: &Value, idx: usize) -> anyhow::Resu
     })
 }
 
-fn validate_device_response(
+async fn validate_device_response(
     response: &DeviceResponse,
     e_self_private_key: &CoseKeyPrivate,
     session_transcript: &TaggedCborBytes<SessionTranscript>,
     iaca_cert_der: Option<&[u8]>,
 ) -> DeviceResponseValidation {
-    let documents = response
-        .documents
-        .as_ref()
-        .map(|documents| {
-            documents
-                .iter()
-                .map(|doc| {
-                    let issuer_cert = doc
-                        .issuer_signed
+    let mut documents = Vec::new();
+
+    if let Some(response_documents) = response.documents.as_ref() {
+        for doc in response_documents {
+            let issuer_cert = doc
+                .issuer_signed
+                .issuer_auth
+                .resolved_document_signer_cert()
+                .map_err(|err| err.to_string())
+                .and_then(|cert| {
+                    cert.cloned().ok_or_else(|| {
+                        "issuerAuth did not contain a document signer certificate".to_string()
+                    })
+                });
+
+            let certificate_validation = match iaca_cert_der {
+                Some(der) => Some(
+                    validate_certificate_chain_with_iaca(&doc.issuer_signed.issuer_auth, der).await,
+                ),
+                None => None,
+            };
+
+            let cose_sign1 = issuer_cert.as_ref().map_or_else(
+                |err| Err(err.clone()),
+                |cert| {
+                    doc.issuer_signed
                         .issuer_auth
-                        .resolved_document_signer_cert()
+                        .verify_with_certificate(cert, b"")
                         .map_err(|err| err.to_string())
-                        .and_then(|cert| {
-                            cert.cloned().ok_or_else(|| {
-                                "issuerAuth did not contain a document signer certificate"
-                                    .to_string()
-                            })
-                        });
+                },
+            );
 
-                    let certificate_validation = iaca_cert_der.map(|der| {
-                        validate_certificate_chain_with_iaca(&doc.issuer_signed.issuer_auth, der)
-                    });
-
-                    let cose_sign1 = issuer_cert.as_ref().map_or_else(
-                        |err| Err(err.clone()),
-                        |cert| {
-                            doc.issuer_signed
-                                .issuer_auth
-                                .verify_with_certificate(cert, b"")
-                                .map_err(|err| err.to_string())
-                        },
-                    );
-
-                    let issuer_data_auth = mdoc_core::verify_issuer_data_auth(
+            let issuer_data_auth = mdoc_core::verify_issuer_data_auth(
+                doc,
+                &IssuerDataAuthContext {
+                    now: Utc::now(),
+                    expected_doc_type: Some(doc.doc_type.clone()),
+                },
+            );
+            let mdoc_device_auth = match &issuer_data_auth {
+                Ok(verified_mso) => match (
+                    doc.device_signed.device_auth.device_signature.as_ref(),
+                    doc.device_signed.device_auth.device_mac.as_ref(),
+                ) {
+                    (Some(_), None) => mdoc_core::verify_mdoc_device_auth(
                         doc,
-                        &IssuerDataAuthContext {
-                            now: Utc::now(),
-                            expected_doc_type: Some(doc.doc_type.clone()),
+                        &MdocDeviceAuthContext {
+                            session_transcript: session_transcript.clone(),
+                            verified_mso: verified_mso.clone(),
                         },
-                    );
-                    let mdoc_device_auth = match &issuer_data_auth {
-                        Ok(verified_mso) => match (
-                            doc.device_signed.device_auth.device_signature.as_ref(),
-                            doc.device_signed.device_auth.device_mac.as_ref(),
-                        ) {
-                            (Some(_), None) => mdoc_core::verify_mdoc_device_auth(
-                                doc,
-                                &MdocDeviceAuthContext {
-                                    session_transcript: session_transcript.clone(),
-                                    verified_mso: verified_mso.clone(),
-                                },
-                            )
-                            .map_err(|err| err.to_string()),
-                            (None, Some(_)) => mdoc_core::verify_mdoc_mac_auth(
-                                doc,
-                                e_self_private_key,
-                                &MdocMacAuthContext {
-                                    session_transcript: session_transcript.clone(),
-                                    verified_mso: verified_mso.clone(),
-                                },
-                            )
-                            .map_err(|err| err.to_string()),
-                            _ => mdoc_core::verify_mdoc_device_auth(
-                                doc,
-                                &MdocDeviceAuthContext {
-                                    session_transcript: session_transcript.clone(),
-                                    verified_mso: verified_mso.clone(),
-                                },
-                            )
-                            .map_err(|err| err.to_string()),
+                    )
+                    .map_err(|err| err.to_string()),
+                    (None, Some(_)) => mdoc_core::verify_mdoc_mac_auth(
+                        doc,
+                        e_self_private_key,
+                        &MdocMacAuthContext {
+                            session_transcript: session_transcript.clone(),
+                            verified_mso: verified_mso.clone(),
                         },
-                        Err(err) => Err(err.to_string()),
-                    };
-                    let issuer_data_auth = issuer_data_auth.map_err(|err| err.to_string());
+                    )
+                    .map_err(|err| err.to_string()),
+                    _ => mdoc_core::verify_mdoc_device_auth(
+                        doc,
+                        &MdocDeviceAuthContext {
+                            session_transcript: session_transcript.clone(),
+                            verified_mso: verified_mso.clone(),
+                        },
+                    )
+                    .map_err(|err| err.to_string()),
+                },
+                Err(err) => Err(err.to_string()),
+            };
+            let issuer_data_auth = issuer_data_auth.map_err(|err| err.to_string());
 
-                    DocumentValidation {
-                        doc_type: doc.doc_type.clone(),
-                        cose_sign1,
-                        issuer_data_auth,
-                        mdoc_device_auth,
-                        certificate_validation,
-                    }
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+            documents.push(DocumentValidation {
+                doc_type: doc.doc_type.clone(),
+                cose_sign1,
+                issuer_data_auth,
+                mdoc_device_auth,
+                certificate_validation,
+            });
+        }
+    }
 
     DeviceResponseValidation { documents }
 }
 
-fn validate_certificate_chain_with_iaca(
+async fn validate_certificate_chain_with_iaca(
     issuer_auth: &mdoc_core::CoseSign1<TaggedCborBytes<mdoc_core::MobileSecurityObject>>,
     iaca_cert_der: &[u8],
 ) -> Result<(), String> {
@@ -300,10 +292,30 @@ fn validate_certificate_chain_with_iaca(
                 .map_err(|err| format!("failed to encode x5chain certificate to DER: {err}"))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let crl_der = match mdoc_validation::extract_crl_distribution_point(iaca_cert_der) {
+        Ok(Some(crl_url)) => {
+            info!("certificate_validation: CRL distribution point found url={crl_url}");
+            Some(
+                mdoc_validation::download_crl_der(&crl_url)
+                    .await
+                    .map_err(|err| err.to_string())?,
+            )
+        }
+        Ok(None) => {
+            info!("certificate_validation: no CRL distribution point found in IACA certificate");
+            None
+        }
+        Err(err) => return Err(err.to_string()),
+    };
 
-    mdoc_validation::validate_reader_auth_certificate(iaca_cert_der, &chain_der, SystemTime::now())
-        .map(|_| ())
-        .map_err(|err| err.to_string())
+    mdoc_validation::validate_reader_auth_certificate(
+        iaca_cert_der,
+        &chain_der,
+        crl_der.as_deref(),
+        SystemTime::now(),
+    )
+    .map(|_| ())
+    .map_err(|err| err.to_string())
 }
 
 fn print_validation_summary(validation: &DeviceResponseValidation) {

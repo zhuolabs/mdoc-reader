@@ -1,7 +1,7 @@
 use std::time::SystemTime;
 
 use log::{info, warn};
-use reqwest::blocking::Client;
+use reqwest::Client;
 use rustls_pki_types::{CertificateDer, UnixTime};
 use url::Url;
 use webpki::{
@@ -19,7 +19,7 @@ pub enum CertificateValidationOutcome {
     Valid { crl_checked: bool },
 }
 
-pub fn download_iacacert_der(iacacert_url: Url) -> Result<Vec<u8>, ValidationError> {
+pub async fn download_iacacert_der(iacacert_url: Url) -> Result<Vec<u8>, ValidationError> {
     if iacacert_url.scheme() != "https" {
         return Err(ValidationError::Unsupported(
             "only https iacacert URLs are allowed".to_string(),
@@ -36,11 +36,14 @@ pub fn download_iacacert_der(iacacert_url: Url) -> Result<Vec<u8>, ValidationErr
     let response = client
         .get(iacacert_url.clone())
         .send()
-        .and_then(|resp| resp.error_for_status())
+        .await
+        .map_err(|e| ValidationError::Network(e.to_string()))?
+        .error_for_status()
         .map_err(|e| ValidationError::Network(e.to_string()))?;
 
     let bytes = response
         .bytes()
+        .await
         .map_err(|e| ValidationError::Network(e.to_string()))?;
 
     info!(
@@ -52,9 +55,16 @@ pub fn download_iacacert_der(iacacert_url: Url) -> Result<Vec<u8>, ValidationErr
     Ok(bytes.to_vec())
 }
 
+pub fn extract_crl_distribution_point(iacacert_der: &[u8]) -> Result<Option<Url>, ValidationError> {
+    let (_, iaca) = x509_parser::certificate::X509Certificate::from_der(iacacert_der)
+        .map_err(|e| ValidationError::CertificateParse(e.to_string()))?;
+    Ok(extract_first_crl_uri(&iaca))
+}
+
 pub fn validate_reader_auth_certificate(
     iacacert_der: &[u8],
     x5chain: &[Vec<u8>],
+    crl_der: Option<&[u8]>,
     now: SystemTime,
 ) -> Result<CertificateValidationOutcome, ValidationError> {
     if x5chain.is_empty() {
@@ -70,8 +80,6 @@ pub fn validate_reader_auth_certificate(
     let iaca_der = CertificateDer::from(iacacert_der);
     let iaca_anchor =
         anchor_from_trusted_cert(&iaca_der).map_err(map_webpki_error_to_validation_error)?;
-    let (_, iaca) = x509_parser::certificate::X509Certificate::from_der(iacacert_der)
-        .map_err(|e| ValidationError::CertificateParse(e.to_string()))?;
 
     let mut parsed_chain = Vec::with_capacity(x5chain.len());
     let mut chain_der = Vec::with_capacity(x5chain.len());
@@ -95,10 +103,8 @@ pub fn validate_reader_auth_certificate(
 
     let mut crl_checked = false;
     let mut crls = Vec::new();
-    if let Some(crl_url) = extract_first_crl_uri(&iaca) {
-        info!("certificate_validation: CRL distribution point found url={crl_url}");
-        let crl_der = download_crl_der(&crl_url)?;
-        let crl = BorrowedCertRevocationList::from_der(&crl_der)
+    if let Some(crl_der) = crl_der {
+        let crl = BorrowedCertRevocationList::from_der(crl_der)
             .map_err(|e| ValidationError::CrlParse(e.to_string()))?;
         let crl = CertRevocationList::from(
             crl.to_owned()
@@ -106,13 +112,9 @@ pub fn validate_reader_auth_certificate(
         );
         crls.push(crl);
         crl_checked = true;
-        info!(
-            "certificate_validation: CRL parsed url={} bytes={}",
-            crl_url,
-            crl_der.len(),
-        );
+        info!("certificate_validation: CRL parsed bytes={}", crl_der.len());
     } else {
-        info!("certificate_validation: no CRL distribution point found in IACA certificate");
+        info!("certificate_validation: no CRL provided");
     }
 
     let crl_refs = crls.iter().collect::<Vec<_>>();
@@ -177,7 +179,7 @@ fn extract_first_crl_uri(cert: &x509_parser::certificate::X509Certificate<'_>) -
     None
 }
 
-fn download_crl_der(crl_url: &Url) -> Result<Vec<u8>, ValidationError> {
+pub async fn download_crl_der(crl_url: &Url) -> Result<Vec<u8>, ValidationError> {
     if crl_url.scheme() != "https" {
         return Err(ValidationError::Unsupported(
             "only https crl URLs are supported".to_string(),
@@ -194,7 +196,15 @@ fn download_crl_der(crl_url: &Url) -> Result<Vec<u8>, ValidationError> {
     let response = client
         .get(crl_url.clone())
         .send()
-        .and_then(|resp| resp.error_for_status())
+        .await
+        .map_err(|err| {
+            warn!(
+                "certificate_validation: CRL download failed url={} error={err}",
+                crl_url
+            );
+            ValidationError::CrlUnavailable
+        })?
+        .error_for_status()
         .map_err(|err| {
             warn!(
                 "certificate_validation: CRL download failed url={} error={err}",
@@ -203,7 +213,7 @@ fn download_crl_der(crl_url: &Url) -> Result<Vec<u8>, ValidationError> {
             ValidationError::CrlUnavailable
         })?;
 
-    let bytes = response.bytes().map_err(|err| {
+    let bytes = response.bytes().await.map_err(|err| {
         warn!(
             "certificate_validation: CRL response body read failed url={} error={err}",
             crl_url
