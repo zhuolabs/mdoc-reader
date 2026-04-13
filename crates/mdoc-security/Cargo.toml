@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+mdoc-core = { path = "../mdoc-core" }
 thiserror = "1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "rustls-tls-native-roots"] }
 rustls-pki-types = "1"
@@ -12,3 +13,12 @@ x509-parser = "0.16"
 url = "2"
 time = "0.3"
 log = "0.4"
+chrono = { version = "0.4", default-features = true }
+sha2 = "0.10"
+hmac = "0.12"
+minicbor = { version = "2.2", features = ["derive", "std"] }
+p256 = { version = "0.13", features = ["ecdh"] }
+x509-cert = "0.2"
+
+[dev-dependencies]
+rcgen = "0.13"

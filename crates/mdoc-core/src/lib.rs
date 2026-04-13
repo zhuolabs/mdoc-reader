@@ -7,9 +7,6 @@ mod device_engagement;
 mod device_request;
 mod device_response;
 mod ident;
-mod issuer_data_auth;
-mod mdoc_device_auth;
-mod mdoc_mac_auth;
 mod mobile_security_object;
 mod reader_engagement;
 mod session_encryption;
@@ -30,16 +27,11 @@ pub use device_request::{
     ItemRequest, NameSpaces, DEVICE_REQUEST_VERSION_1_0,
 };
 pub use device_response::{
-    DeviceResponse, IssuerSignedItem, MdocDocument, DEVICE_RESPONSE_STATUS_CBOR_DECODING_ERROR,
-    DEVICE_RESPONSE_STATUS_CBOR_VALIDATION_ERROR, DEVICE_RESPONSE_STATUS_GENERAL_ERROR,
-    DEVICE_RESPONSE_STATUS_OK,
+    DeviceAuth, DeviceResponse, DeviceSigned, IssuerSigned, IssuerSignedItem, MdocDocument,
+    DEVICE_RESPONSE_STATUS_CBOR_DECODING_ERROR, DEVICE_RESPONSE_STATUS_CBOR_VALIDATION_ERROR,
+    DEVICE_RESPONSE_STATUS_GENERAL_ERROR, DEVICE_RESPONSE_STATUS_OK,
 };
 pub use ident::ble_ident;
-pub use issuer_data_auth::{
-    verify_issuer_data_auth, IssuerDataAuthContext, IssuerDataAuthError, VerifiedMso,
-};
-pub use mdoc_device_auth::{verify_mdoc_device_auth, MdocDeviceAuthContext, MdocDeviceAuthError};
-pub use mdoc_mac_auth::{verify_mdoc_mac_auth, MdocMacAuthContext, MdocMacAuthError};
 pub use mobile_security_object::{
     Certificate, DataElements, DeviceKeyInfo, DigestIds, Identifier, IdentifierListInfo,
     KeyAuthorizations, KeyInfo, MobileSecurityObject, Status, StatusListInfo, TDate, ValidityInfo,

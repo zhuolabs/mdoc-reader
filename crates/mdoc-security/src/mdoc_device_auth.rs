@@ -1,11 +1,14 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
+use mdoc_core::{ElementValue, MdocDocument, SessionTranscript, TaggedCborBytes};
 use minicbor::{Decode, Encode};
 use p256::ecdsa::VerifyingKey;
 
-use crate::device_response::DeviceNameSpaces;
-use crate::{MdocDocument, SessionTranscript, TaggedCborBytes, VerifiedMso};
+use crate::VerifiedMso;
+
+type DeviceNameSpaces =
+    std::collections::BTreeMap<String, std::collections::BTreeMap<String, ElementValue>>;
 
 #[derive(Debug, Clone)]
 pub struct MdocDeviceAuthContext {

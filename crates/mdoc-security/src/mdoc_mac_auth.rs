@@ -1,16 +1,17 @@
 use std::fmt;
 
 use hmac::{Hmac, Mac};
+use mdoc_core::{
+    derive_emac_key, derive_shared_secret, CoseAlg, CoseKeyPrivate, CoseMac0, ElementValue,
+    MacStructure, MdocDocument, SessionTranscript, TaggedCborBytes, MAC0_CONTEXT,
+};
 use minicbor::bytes::ByteVec;
 use sha2::Sha256;
 
 use crate::mdoc_device_auth::{
     build_device_authentication_bytes, verify_key_authorizations, MdocDeviceAuthError,
 };
-use crate::{
-    derive_emac_key, derive_shared_secret, CoseAlg, CoseKeyPrivate, CoseMac0, MacStructure,
-    MdocDocument, SessionTranscript, TaggedCborBytes, VerifiedMso, MAC0_CONTEXT,
-};
+use crate::VerifiedMso;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -97,7 +98,7 @@ pub fn verify_mdoc_mac_auth(
 }
 
 fn verify_device_mac(
-    device_mac: &crate::ElementValue,
+    device_mac: &ElementValue,
     emac_key: &[u8; 32],
     expected_payload: &[u8],
 ) -> Result<(), MdocMacAuthError> {

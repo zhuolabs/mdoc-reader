@@ -4,11 +4,13 @@ use chrono::Utc;
 use clap::Parser;
 use log::info;
 use mdoc_core::{
-    CoseKeyPrivate, DeviceRequest, DeviceResponse, IssuerDataAuthContext, MdocDeviceAuthContext,
-    MdocMacAuthContext, NameSpaces, SessionTranscript, TaggedCborBytes, VerifiedMso,
+    CoseKeyPrivate, DeviceRequest, DeviceResponse, NameSpaces, SessionTranscript, TaggedCborBytes,
 };
 use mdoc_data_retrieval_flow::DataRetrievalFlow;
 use mdoc_data_retrieval_flow_nfc_ble::NfcBleDataRetrievalFlow;
+use mdoc_security::{
+    IssuerDataAuthContext, MdocDeviceAuthContext, MdocMacAuthContext, VerifiedMso,
+};
 use mdoc_transport_ble_winrt::WinRtBleMdocTransportFactory;
 use mdoc_ui_cli::{render_device_response, ConsoleDataRetrievalFlowObserver};
 use nfc_reader_pcsc::PcscReader;
@@ -220,7 +222,7 @@ async fn validate_device_response(
                 },
             );
 
-            let issuer_data_auth = mdoc_core::verify_issuer_data_auth(
+            let issuer_data_auth = mdoc_security::verify_issuer_data_auth(
                 doc,
                 &IssuerDataAuthContext {
                     now: Utc::now(),
@@ -232,7 +234,7 @@ async fn validate_device_response(
                     doc.device_signed.device_auth.device_signature.as_ref(),
                     doc.device_signed.device_auth.device_mac.as_ref(),
                 ) {
-                    (Some(_), None) => mdoc_core::verify_mdoc_device_auth(
+                    (Some(_), None) => mdoc_security::verify_mdoc_device_auth(
                         doc,
                         &MdocDeviceAuthContext {
                             session_transcript: session_transcript.clone(),
@@ -240,7 +242,7 @@ async fn validate_device_response(
                         },
                     )
                     .map_err(|err| err.to_string()),
-                    (None, Some(_)) => mdoc_core::verify_mdoc_mac_auth(
+                    (None, Some(_)) => mdoc_security::verify_mdoc_mac_auth(
                         doc,
                         e_self_private_key,
                         &MdocMacAuthContext {
@@ -249,7 +251,7 @@ async fn validate_device_response(
                         },
                     )
                     .map_err(|err| err.to_string()),
-                    _ => mdoc_core::verify_mdoc_device_auth(
+                    _ => mdoc_security::verify_mdoc_device_auth(
                         doc,
                         &MdocDeviceAuthContext {
                             session_transcript: session_transcript.clone(),
