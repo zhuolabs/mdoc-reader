@@ -1761,13 +1761,21 @@ dependencies = [
 name = "mdoc-security"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "hmac",
  "log",
+ "mdoc-core",
+ "minicbor",
+ "p256",
+ "rcgen",
  "reqwest",
  "rustls-pki-types",
  "rustls-webpki",
+ "sha2",
  "thiserror 1.0.69",
  "time",
  "url",
+ "x509-cert",
  "x509-parser",
 ]
 

@@ -2,9 +2,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use chrono::{DateTime, Utc};
+use mdoc_core::{MdocDocument, MobileSecurityObject};
 use sha2::{Digest, Sha256};
-
-use crate::{MdocDocument, MobileSecurityObject};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IssuerDataAuthContext {
@@ -248,18 +247,17 @@ impl DigestLookup {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mdoc_core::{
+        CborBytes, CoseAlg, CoseSign1, DeviceAuth, DeviceKeyInfo, DeviceSigned, ElementValue,
+        HeaderMap, IssuerSigned, IssuerSignedItem, ProtectedHeaderMap, TDate, TaggedCborBytes,
+        ValidityInfo, X5Chain,
+    };
     use minicbor::bytes::ByteVec;
     use minicbor::{Decode, Encode};
     use p256::ecdsa::signature::Signer;
     use p256::pkcs8::DecodePrivateKey;
     use rcgen::{CertificateParams, KeyPair, PKCS_ECDSA_P256_SHA256};
     use x509_cert::der::Decode as DerDecode;
-
-    use crate::device_response::{DeviceAuth, DeviceSigned, IssuerSigned};
-    use crate::{
-        CborBytes, CoseAlg, CoseSign1, HeaderMap, IssuerSignedItem, MobileSecurityObject,
-        ProtectedHeaderMap, TDate, TaggedCborBytes, ValidityInfo, X5Chain,
-    };
 
     #[test]
     fn verify_issuer_data_auth_accepts_valid_signed_document() {
@@ -350,8 +348,8 @@ mod tests {
                 namespace.clone(),
                 BTreeMap::from([(0_u64, ByteVec::from(item_digest))]),
             )]),
-            device_key_info: crate::DeviceKeyInfo {
-                device_key: crate::CoseKeyPrivate::new().unwrap().to_public(),
+            device_key_info: DeviceKeyInfo {
+                device_key: mdoc_core::CoseKeyPrivate::new().unwrap().to_public(),
                 key_authorizations: None,
                 key_info: None,
             },
@@ -426,7 +424,7 @@ mod tests {
             digest_id,
             random: ByteVec::from(vec![0xAA; 16]),
             element_identifier: element_identifier.to_string(),
-            element_value: crate::ElementValue::new(minicbor::to_vec(value).unwrap()),
+            element_value: ElementValue::new(minicbor::to_vec(value).unwrap()),
         })
     }
 
