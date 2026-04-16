@@ -1,5 +1,5 @@
-use crate::cbor_bytes::TaggedCborBytes;
 use crate::CoseKeyPublic;
+use crate::cbor_bytes::TaggedCborBytes;
 use anyhow::Result;
 use minicbor::bytes::ByteVec;
 use minicbor::decode;
@@ -140,7 +140,7 @@ impl<C> encode::Encode<C> for RetrievalMethod {
             _ => {
                 return Err(encode::Error::message(
                     "method_type and options variant mismatch",
-                ))
+                ));
             }
         }
 
@@ -168,7 +168,7 @@ impl<'b, C> decode::Decode<'b, C> for RetrievalMethod {
             _ => {
                 return Err(decode::Error::message(
                     "unsupported ReaderRetrievalMethod type",
-                ))
+                ));
             }
         };
 
