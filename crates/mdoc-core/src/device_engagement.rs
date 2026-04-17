@@ -1,5 +1,5 @@
-use crate::CoseKeyPublic;
 use crate::cbor_bytes::TaggedCborBytes;
+use crate::CoseKeyPublic;
 use anyhow::Result;
 use minicbor::bytes::ByteVec;
 use minicbor::decode;

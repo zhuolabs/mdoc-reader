@@ -1,6 +1,8 @@
+use anyhow::Result;
 use minicbor::bytes::ByteVec;
 use minicbor::{Decode, Encode};
 
+use crate::cose_sign::CoseDecodePayload;
 use crate::{CborAny, CborBytes, HeaderMap, ProtectedHeaderMap};
 
 pub const MAC0_CONTEXT: &str = "MAC0";
@@ -32,4 +34,20 @@ pub struct MacStructure {
     pub external_aad: ByteVec,
     #[n(3)]
     pub payload: ByteVec,
+}
+
+impl<T> CoseDecodePayload<T> for CoseMac0<T>
+where
+    T: Encode<()> + for<'a> Decode<'a, ()>,
+{
+    fn decode_payload(&self) -> Result<T>
+    where
+        for<'a> T: Decode<'a, ()>,
+    {
+        let payload = self
+            .payload
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("COSE_Mac0 payload is missing"))?;
+        Ok(payload.decode()?)
+    }
 }

@@ -1,8 +1,8 @@
 use anyhow::Result;
 use minicbor::bytes::ByteVec;
 use minicbor::{Decode, Encode};
-use p256::ecdsa::VerifyingKey;
 use p256::ecdsa::signature::Verifier;
+use p256::ecdsa::VerifyingKey;
 
 use crate::{CborAny, CborBytes, X5Chain};
 
@@ -85,11 +85,36 @@ pub enum CoseAlg {
     HMAC256256,
 }
 
-impl<T> CoseSign1<T>
+pub trait GetCoseAlg {
+    fn alg(&self) -> Result<CoseAlg>;
+}
+
+pub trait CoseDecodePayload<T> {
+    fn decode_payload(&self) -> Result<T>;
+}
+
+pub trait CoseVerify<K> {
+    fn verify(&self, key: &K, external_aad: &[u8]) -> Result<()>;
+}
+
+impl<T> GetCoseAlg for CoseSign1<T>
 where
     T: Encode<()> + for<'a> Decode<'a, ()>,
 {
-    pub fn decode_payload_cbor(&self) -> Result<T>
+    fn alg(&self) -> Result<CoseAlg> {
+        self.protected
+            .decode()
+            .map_err(|_| anyhow::anyhow!("protected header must be bstr.cbor header_map"))?
+            .alg
+            .ok_or_else(|| anyhow::anyhow!("COSE_Sign1 algorithm is missing from protected header"))
+    }
+}
+
+impl<T> CoseDecodePayload<T> for CoseSign1<T>
+where
+    T: Encode<()> + for<'a> Decode<'a, ()>,
+{
+    fn decode_payload(&self) -> Result<T>
     where
         for<'a> T: Decode<'a, ()>,
     {
@@ -99,32 +124,40 @@ where
             .ok_or_else(|| anyhow::anyhow!("COSE_Sign1 payload is missing"))?;
         Ok(payload.decode()?)
     }
+}
 
-    pub fn resolved_alg(&self) -> Result<CoseAlg> {
-        self.protected
-            .decode()
-            .map_err(|_| anyhow::anyhow!("protected header must be bstr.cbor header_map"))?
-            .alg
-            .ok_or_else(|| anyhow::anyhow!("COSE_Sign1 algorithm is missing from protected header"))
-    }
-
-    pub fn resolved_document_signer_cert(&self) -> Result<Option<&x509_cert::Certificate>> {
-        Ok(self.unprotected.document_signer_cert())
-    }
-
-    pub fn verify(&self, verifying_key: &VerifyingKey, external_aad: &[u8]) -> Result<()> {
+impl<T> CoseVerify<VerifyingKey> for CoseSign1<T>
+where
+    T: Encode<()> + for<'a> Decode<'a, ()>,
+{
+    fn verify(&self, key: &VerifyingKey, external_aad: &[u8]) -> Result<()> {
         let payload = self
             .payload
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("COSE_Sign1 payload is missing"))?;
-        self.verify_detached_payload(verifying_key, external_aad, payload.raw_cbor_bytes())
+        match self.alg()? {
+            CoseAlg::ES256 | CoseAlg::ES256P256 => {
+                let sig_structure = minicbor::to_vec(SigStructureSignature1 {
+                    context: "Signature1".to_string(),
+                    body_protected: ByteVec::from(self.protected.raw_cbor_bytes().to_vec()),
+                    external_aad: ByteVec::from(external_aad.to_vec()),
+                    payload: ByteVec::from(payload.raw_cbor_bytes().to_vec()),
+                })?;
+                let signature = p256::ecdsa::Signature::from_slice(self.signature.as_slice())
+                    .map_err(|_| anyhow::anyhow!("invalid ES256 signature bytes"))?;
+                key.verify(&sig_structure, &signature)
+                    .map_err(|_| anyhow::anyhow!("COSE_Sign1 signature verification failed"))
+            }
+            alg => anyhow::bail!("unsupported COSE algorithm for signature verification: {alg:?}"),
+        }
     }
+}
 
-    pub fn verify_with_certificate(
-        &self,
-        certificate: &x509_cert::Certificate,
-        external_aad: &[u8],
-    ) -> Result<()> {
+impl<T> CoseVerify<x509_cert::Certificate> for CoseSign1<T>
+where
+    T: Encode<()> + for<'a> Decode<'a, ()>,
+{
+    fn verify(&self, certificate: &x509_cert::Certificate, external_aad: &[u8]) -> Result<()> {
         let sec1_bytes = certificate
             .tbs_certificate
             .subject_public_key_info
@@ -135,29 +168,14 @@ where
             .map_err(|_| anyhow::anyhow!("certificate public key is not a valid P-256 key"))?;
         self.verify(&verifying_key, external_aad)
     }
+}
 
-    pub fn verify_detached_payload(
-        &self,
-        verifying_key: &VerifyingKey,
-        external_aad: &[u8],
-        payload: &[u8],
-    ) -> Result<()> {
-        match self.resolved_alg()? {
-            CoseAlg::ES256 | CoseAlg::ES256P256 => {
-                let sig_structure = minicbor::to_vec(SigStructureSignature1 {
-                    context: "Signature1".to_string(),
-                    body_protected: ByteVec::from(self.protected.raw_cbor_bytes().to_vec()),
-                    external_aad: ByteVec::from(external_aad.to_vec()),
-                    payload: ByteVec::from(payload.to_vec()),
-                })?;
-                let signature = p256::ecdsa::Signature::from_slice(self.signature.as_slice())
-                    .map_err(|_| anyhow::anyhow!("invalid ES256 signature bytes"))?;
-                verifying_key
-                    .verify(&sig_structure, &signature)
-                    .map_err(|_| anyhow::anyhow!("COSE_Sign1 signature verification failed"))
-            }
-            alg => anyhow::bail!("unsupported COSE algorithm for signature verification: {alg:?}"),
-        }
+impl<T> CoseSign1<T>
+where
+    T: Encode<()> + for<'a> Decode<'a, ()>,
+{
+    pub fn document_signer_cert(&self) -> Result<Option<&x509_cert::Certificate>> {
+        Ok(self.unprotected.document_signer_cert())
     }
 }
 
@@ -165,8 +183,8 @@ where
 mod tests {
     use super::*;
     use minicbor::Encoder;
-    use p256::ecdsa::SigningKey;
     use p256::ecdsa::signature::Signer;
+    use p256::ecdsa::SigningKey;
 
     #[test]
     fn protected_header_map_roundtrips_non_empty_bstr() {
@@ -206,7 +224,7 @@ mod tests {
             signature: ByteVec::from(vec![0; 64]),
         };
 
-        let payload = sign1.decode_payload_cbor().unwrap();
+        let payload = sign1.decode_payload().unwrap();
         assert_eq!(payload, "hello");
     }
 
@@ -219,7 +237,7 @@ mod tests {
             signature: ByteVec::from(vec![0; 64]),
         };
 
-        let result = sign1.decode_payload_cbor();
+        let result = sign1.decode_payload();
         assert!(result.is_err());
     }
 

@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use chrono::{DateTime, Utc};
+use mdoc_core::{CoseDecodePayload, CoseVerify};
 use mdoc_core::{MdocDocument, MobileSecurityObject};
 use sha2::{Digest, Sha256};
 
@@ -101,20 +102,20 @@ pub fn verify_issuer_data_auth(
 ) -> Result<VerifiedMso, IssuerDataAuthError> {
     let issuer_auth = &doc.issuer_signed.issuer_auth;
     let mso_bytes = issuer_auth
-        .decode_payload_cbor()
+        .decode_payload()
         .map_err(|err| IssuerDataAuthError::InvalidIssuerAuth(err.to_string()))?;
     let mso = mso_bytes
         .decode()
         .map_err(|err| IssuerDataAuthError::InvalidMobileSecurityObject(err.to_string()))?;
 
     let issuer_cert = issuer_auth
-        .resolved_document_signer_cert()
+        .document_signer_cert()
         .map_err(|err| IssuerDataAuthError::InvalidIssuerAuth(err.to_string()))?
         .cloned()
         .ok_or(IssuerDataAuthError::MissingIssuerCertificate)?;
 
     issuer_auth
-        .verify_with_certificate(&issuer_cert, b"")
+        .verify(&issuer_cert, b"")
         .map_err(|err| IssuerDataAuthError::InvalidIssuerAuth(err.to_string()))?;
 
     verify_doc_type(&mso.doc_type, &doc.doc_type)?;

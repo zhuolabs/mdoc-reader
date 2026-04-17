@@ -4,13 +4,12 @@ use chrono::Utc;
 use clap::Parser;
 use log::info;
 use mdoc_core::{
-    CoseKeyPrivate, DeviceRequest, DeviceResponse, NameSpaces, SessionTranscript, TaggedCborBytes,
+    CoseKeyPrivate, CoseVerify, DeviceRequest, DeviceResponse, NameSpaces, SessionTranscript,
+    TaggedCborBytes,
 };
 use mdoc_data_retrieval_flow::DataRetrievalFlow;
 use mdoc_data_retrieval_flow_nfc_ble::NfcBleDataRetrievalFlow;
-use mdoc_security::{
-    IssuerDataAuthContext, MdocDeviceAuthContext, MdocMacAuthContext, VerifiedMso,
-};
+use mdoc_security::{IssuerDataAuthContext, MdocDeviceAuthContext, VerifiedMso};
 use mdoc_transport_ble_winrt::WinRtBleMdocTransportFactory;
 use mdoc_ui_cli::{render_device_response, ConsoleDataRetrievalFlowObserver};
 use nfc_reader_pcsc::PcscReader;
@@ -197,7 +196,7 @@ async fn validate_device_response(
             let issuer_cert = doc
                 .issuer_signed
                 .issuer_auth
-                .resolved_document_signer_cert()
+                .document_signer_cert()
                 .map_err(|err| err.to_string())
                 .and_then(|cert| {
                     cert.cloned().ok_or_else(|| {
@@ -217,7 +216,7 @@ async fn validate_device_response(
                 |cert| {
                     doc.issuer_signed
                         .issuer_auth
-                        .verify_with_certificate(cert, b"")
+                        .verify(cert, b"")
                         .map_err(|err| err.to_string())
                 },
             );
@@ -245,7 +244,7 @@ async fn validate_device_response(
                     (None, Some(_)) => mdoc_security::verify_mdoc_mac_auth(
                         doc,
                         e_self_private_key,
-                        &MdocMacAuthContext {
+                        &MdocDeviceAuthContext {
                             session_transcript: session_transcript.clone(),
                             verified_mso: verified_mso.clone(),
                         },

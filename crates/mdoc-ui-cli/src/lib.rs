@@ -3,7 +3,10 @@ use chrono::NaiveDate;
 use hayro_jpeg2000::{DecodeSettings, Image as Jpeg2000Image};
 use image::{DynamicImage, ImageFormat};
 use log::debug;
-use mdoc_core::{CborBytes, DeviceResponse, ElementValue, FullDate, MobileSecurityObject, Status};
+use mdoc_core::{
+    CborBytes, CoseDecodePayload, DeviceResponse, ElementValue, FullDate, MobileSecurityObject,
+    Status,
+};
 use mdoc_data_retrieval_flow::{DataRetrievalFlowEvent, EngagementMethod, TransportKind};
 use mdoc_ui::{FlowEventUi, MdocResultUi};
 use minicbor::bytes::ByteVec;
@@ -226,7 +229,7 @@ fn print_mso_status(doc: &mdoc_core::MdocDocument) -> Result<()> {
     let mso_bytes = doc
         .issuer_signed
         .issuer_auth
-        .decode_payload_cbor()
+        .decode_payload()
         .context("failed to decode issuerAuth payload as tagged MobileSecurityObject bytes")?;
     let mso: MobileSecurityObject = mso_bytes
         .decode()

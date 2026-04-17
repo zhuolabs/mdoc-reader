@@ -13,5 +13,5 @@ pub use issuer_data_auth::{
 };
 pub use mdoc_device_auth::{
     verify_mdoc_device_auth, verify_mdoc_mac_auth, MdocDeviceAuthContext, MdocDeviceAuthError,
-    MdocMacAuthContext, MdocMacAuthError,
+    MdocMacAuthError,
 };

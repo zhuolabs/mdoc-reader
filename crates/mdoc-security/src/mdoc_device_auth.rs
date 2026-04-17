@@ -3,8 +3,8 @@ use std::fmt;
 
 use hmac::{Hmac, Mac};
 use mdoc_core::{
-    derive_emac_key, derive_shared_secret, CoseAlg, CoseKeyPrivate, CoseMac0, ElementValue,
-    MacStructure, MdocDocument, SessionTranscript, TaggedCborBytes, MAC0_CONTEXT,
+    derive_emac_key, derive_shared_secret, CoseAlg, CoseKeyPrivate, CoseMac0, CoseVerify,
+    ElementValue, MacStructure, MdocDocument, SessionTranscript, TaggedCborBytes, MAC0_CONTEXT,
 };
 use minicbor::bytes::ByteVec;
 use minicbor::{Decode, Encode};
@@ -19,12 +19,6 @@ type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Debug, Clone)]
 pub struct MdocDeviceAuthContext {
-    pub session_transcript: TaggedCborBytes<SessionTranscript>,
-    pub verified_mso: VerifiedMso,
-}
-
-#[derive(Debug, Clone)]
-pub struct MdocMacAuthContext {
     pub session_transcript: TaggedCborBytes<SessionTranscript>,
     pub verified_mso: VerifiedMso,
 }
@@ -79,7 +73,9 @@ impl std::error::Error for MdocDeviceAuthError {}
 
 enum DeviceAuthVerifier<'a> {
     Signature,
-    Mac { e_reader_key_private: &'a CoseKeyPrivate },
+    Mac {
+        e_reader_key_private: &'a CoseKeyPrivate,
+    },
 }
 
 pub fn verify_mdoc_device_auth(
@@ -92,7 +88,7 @@ pub fn verify_mdoc_device_auth(
 pub fn verify_mdoc_mac_auth(
     doc: &MdocDocument,
     e_reader_key_private: &CoseKeyPrivate,
-    ctx: &MdocMacAuthContext,
+    ctx: &MdocDeviceAuthContext,
 ) -> Result<(), MdocMacAuthError> {
     let device_ctx = MdocDeviceAuthContext {
         session_transcript: ctx.session_transcript.clone(),
@@ -156,7 +152,7 @@ fn verify_device_signature(
         })?;
 
     device_signature
-        .verify_detached_payload(&verifying_key, b"", expected_payload)
+        .verify(&verifying_key, b"")
         .map_err(|err| MdocDeviceAuthError::DeviceSignatureInvalid(err.to_string()))
 }
 

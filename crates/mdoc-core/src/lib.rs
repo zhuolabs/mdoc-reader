@@ -18,29 +18,31 @@ pub use cbor_bytes::{
     CborAny, CborBytes, ElementValue, FullDate, OptionalStringCborBytes, TaggedCborBytes,
 };
 pub use cose_key::{CoseKeyPrivate, CoseKeyPublic};
-pub use cose_mac::{CoseMac0, MAC0_CONTEXT, MacStructure};
-pub use cose_sign::{CoseAlg, CoseSign1, HeaderMap, ProtectedHeaderMap};
+pub use cose_mac::{CoseMac0, MacStructure, MAC0_CONTEXT};
+pub use cose_sign::{
+    CoseAlg, CoseDecodePayload, CoseSign1, CoseVerify, GetCoseAlg, HeaderMap, ProtectedHeaderMap,
+};
 pub use device_engagement::{
-    DEVICE_ENGAGEMENT_RECORD_TYPE, DeviceEngagement, OriginInfo, RetrievalMethod, RetrievalOptions,
+    DeviceEngagement, OriginInfo, RetrievalMethod, RetrievalOptions, DEVICE_ENGAGEMENT_RECORD_TYPE,
 };
 pub use device_request::{
-    DEVICE_REQUEST_VERSION_1_0, DeviceRequest, DeviceRequestBuilder, DeviceRequestInfo, DocRequest,
-    DocRequestInfo, ItemRequest, NameSpaces,
+    DeviceRequest, DeviceRequestBuilder, DeviceRequestInfo, DocRequest, DocRequestInfo,
+    ItemRequest, NameSpaces, DEVICE_REQUEST_VERSION_1_0,
 };
 pub use device_response::{
+    DeviceAuth, DeviceResponse, DeviceSigned, IssuerSigned, IssuerSignedItem, MdocDocument,
     DEVICE_RESPONSE_STATUS_CBOR_DECODING_ERROR, DEVICE_RESPONSE_STATUS_CBOR_VALIDATION_ERROR,
-    DEVICE_RESPONSE_STATUS_GENERAL_ERROR, DEVICE_RESPONSE_STATUS_OK, DeviceAuth, DeviceResponse,
-    DeviceSigned, IssuerSigned, IssuerSignedItem, MdocDocument,
+    DEVICE_RESPONSE_STATUS_GENERAL_ERROR, DEVICE_RESPONSE_STATUS_OK,
 };
 pub use ident::ble_ident;
 pub use mobile_security_object::{
     Certificate, DataElements, DeviceKeyInfo, DigestIds, Identifier, IdentifierListInfo,
-    KeyAuthorizations, KeyInfo, MobileSecurityObject, Status, StatusListInfo, TDate, URI,
-    ValidityInfo, ValueDigests,
+    KeyAuthorizations, KeyInfo, MobileSecurityObject, Status, StatusListInfo, TDate, ValidityInfo,
+    ValueDigests, URI,
 };
-pub use reader_engagement::{READER_ENGAGEMENT_RECORD_TYPE, ReaderEngagement};
+pub use reader_engagement::{ReaderEngagement, READER_ENGAGEMENT_RECORD_TYPE};
 pub use session_encryption::{
-    MdocRole, SessionEncryption, derive_emac_key, derive_session_keys, derive_shared_secret,
+    derive_emac_key, derive_session_keys, derive_shared_secret, MdocRole, SessionEncryption,
 };
 pub use session_messages::{SessionData, SessionEstablishment};
 pub use session_transcript::{NFCHandover, SessionTranscript};

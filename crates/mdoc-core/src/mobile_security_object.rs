@@ -1,5 +1,5 @@
-use crate::CoseKeyPublic;
 use crate::cbor_string_map_struct::cbor_string_map_struct;
+use crate::CoseKeyPublic;
 use minicbor::bytes::ByteVec;
 use minicbor::data::Tagged;
 use std::collections::BTreeMap;
