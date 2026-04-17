@@ -9,6 +9,7 @@ nfc-reader-pcsc = { path = "../../crates/nfc-reader-pcsc" }
 mdoc-transport-ble-winrt = { path = "../../crates/mdoc-transport-ble-winrt" }
 mdoc-data-retrieval-flow = { path = "../../crates/mdoc-data-retrieval-flow" }
 mdoc-data-retrieval-flow-nfc-ble = { path = "../../crates/mdoc-data-retrieval-flow-nfc-ble" }
+mdoc-reader-flow = { path = "../../crates/mdoc-reader-flow" }
 mdoc-ui-cli = { path = "../../crates/mdoc-ui-cli" }
 mdoc-security = { path = "../../crates/mdoc-security" }
 anyhow = "1"
@@ -18,6 +19,5 @@ clap = { version = "4", features = ["derive"] }
 uuid = { version = "1", features = ["std"] }
 log = "0.4"
 env_logger = "0.11"
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 x509-cert = "0.2"
 url = "2"

@@ -1,21 +1,13 @@
 use anyhow::{anyhow, Context};
 use clap::Parser;
 use log::info;
-use mdoc_core::{
-    CoseKeyPrivate, DeviceRequest, DeviceResponse, NameSpaces, SessionTranscript,
-};
-use mdoc_data_retrieval_flow::DataRetrievalFlow;
-use mdoc_data_retrieval_flow_nfc_ble::NfcBleDataRetrievalFlow;
-use mdoc_security::IssuerDataAuthContext;
+use mdoc_core::{CoseKeyPrivate, DeviceRequest, NameSpaces};
+use mdoc_reader_flow::read_mdoc;
 use mdoc_transport_ble_winrt::WinRtBleMdocTransportFactory;
 use mdoc_ui_cli::{render_device_response, ConsoleDataRetrievalFlowObserver};
 use nfc_reader_pcsc::PcscReader;
 use serde_json::Value;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    time::SystemTime,
-};
+use std::{fs, path::{Path, PathBuf}};
 use url::Url;
 use uuid::Uuid;
 
@@ -51,21 +43,19 @@ async fn main() -> anyhow::Result<()> {
 
     let transport_factory = WinRtBleMdocTransportFactory;
     info!("BLE transport factory selected");
-    let mut flow = NfcBleDataRetrievalFlow::new(&mut nfc, &transport_factory, cli.service_uuid);
     let e_reader_key_private = CoseKeyPrivate::new()?;
-    let result = flow
-        .retrieve_data(&device_request, &e_reader_key_private, Some(&observer))
-        .await?;
-
-    validate_device_response(
-        &result.device_response,
+    let response = read_mdoc(
+        &mut nfc,
+        &transport_factory,
+        cli.service_uuid,
         &e_reader_key_private,
-        &result.session_transcript,
+        &device_request,
+        Some(&observer),
         iaca_cert.as_ref(),
         cli.skip_crl,
     )
     .await?;
-    render_device_response(&result.device_response)
+    render_device_response(&response)
 }
 
 struct RequestConfig {
@@ -191,53 +181,4 @@ fn build_namespaces_from_json(items_request: &Value, idx: usize) -> anyhow::Resu
             idx
         )
     })
-}
-
-async fn validate_device_response(
-    response: &DeviceResponse,
-    e_self_private_key: &CoseKeyPrivate,
-    session_transcript: &SessionTranscript,
-    iaca_cert: Option<&x509_cert::Certificate>,
-    skip_crl: bool,
-) -> anyhow::Result<()> {
-    if let Some(response_documents) = response.documents.as_ref() {
-        for doc in response_documents {
-            if let Some(cert) = iaca_cert {
-                let result = mdoc_security::validate_document_x5chain(
-                    &doc.issuer_signed.issuer_auth,
-                    cert,
-                    skip_crl,
-                    SystemTime::now(),
-                )
-                .await
-                .with_context(|| format!("certificate_validation failed docType={}", doc.doc_type))?;
-                info!("[OK] Certificate validation result for docType={}: {:?}", doc.doc_type, result);
-            }
-
-            let verified = mdoc_security::verify_issuer_data_auth(
-                doc,
-                &IssuerDataAuthContext {
-                    now: chrono::Utc::now(),
-                    expected_doc_type: Some(doc.doc_type.clone()),
-                },
-            )
-            .map_err(|err| anyhow!("issuer_data_auth verification failed docType={} error={err}", doc.doc_type))?;
-
-            mdoc_security::verify_mdoc_device_auth(
-                &doc.device_signed,
-                &verified.mso.device_key_info,
-                e_self_private_key,
-                session_transcript,
-                &doc.doc_type,
-            )
-            .map_err(|err| {
-                anyhow!(
-                    "mdoc_device_auth verification failed docType={} error=failed to decode session transcript: {err}",
-                    doc.doc_type
-                )
-            })?;
-        }
-    }
-
-    Ok(())
 }

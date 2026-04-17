@@ -1,0 +1,21 @@
+[package]
+name = "mdoc-reader-flow"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+log = "0.4"
+x509-cert = "0.2"
+mdoc-core = { path = "../mdoc-core" }
+mdoc-security = { path = "../mdoc-security" }
+mdoc-data-retrieval-flow = { path = "../mdoc-data-retrieval-flow" }
+mdoc-data-retrieval-flow-nfc-ble = { path = "../mdoc-data-retrieval-flow-nfc-ble" }
+mdoc-transport = { path = "../mdoc-transport" }
+nfc-reader = { path = "../nfc-reader" }
+uuid = { version = "1", features = ["std"] }
+
+[dev-dependencies]
+minicbor = { version = "2.2", features = ["std"] }
+tokio = { version = "1", features = ["macros", "rt"] }

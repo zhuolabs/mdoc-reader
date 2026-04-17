@@ -3,6 +3,7 @@ members = [
     "crates/mdoc-transport",
     "crates/mdoc-data-retrieval-flow",
     "crates/mdoc-data-retrieval-flow-nfc-ble",
+    "crates/mdoc-reader-flow",
     "crates/connection-handover",
     "crates/tnep",
     "crates/nfc-reader",

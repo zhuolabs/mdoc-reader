@@ -1738,13 +1738,13 @@ name = "mdoc-reader"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "chrono",
  "clap",
  "env_logger",
  "log",
  "mdoc-core",
  "mdoc-data-retrieval-flow",
  "mdoc-data-retrieval-flow-nfc-ble",
+ "mdoc-reader-flow",
  "mdoc-security",
  "mdoc-transport-ble-winrt",
  "mdoc-ui-cli",
@@ -1752,6 +1752,25 @@ dependencies = [
  "serde_json",
  "tokio",
  "url",
+ "uuid",
+ "x509-cert",
+]
+
+[[package]]
+name = "mdoc-reader-flow"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "log",
+ "mdoc-core",
+ "mdoc-data-retrieval-flow",
+ "mdoc-data-retrieval-flow-nfc-ble",
+ "mdoc-security",
+ "mdoc-transport",
+ "minicbor",
+ "nfc-reader",
+ "tokio",
  "uuid",
  "x509-cert",
 ]
