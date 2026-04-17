@@ -20,7 +20,7 @@ pub use cbor_bytes::{
 pub use cose_key::{CoseKeyPrivate, CoseKeyPublic};
 pub use cose_mac::{CoseMac0, MacStructure, MAC0_CONTEXT};
 pub use cose_sign::{
-    CoseAlg, CoseDecodePayload, CoseSign1, CoseVerify, GetCoseAlg, HeaderMap, ProtectedHeaderMap,
+    CoseAlg, CoseSign1, CoseVerify, GetCoseAlg, HeaderMap, ProtectedHeaderMap,
 };
 pub use device_engagement::{
     DeviceEngagement, OriginInfo, RetrievalMethod, RetrievalOptions, DEVICE_ENGAGEMENT_RECORD_TYPE,

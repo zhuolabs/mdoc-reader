@@ -4,7 +4,7 @@ use hayro_jpeg2000::{DecodeSettings, Image as Jpeg2000Image};
 use image::{DynamicImage, ImageFormat};
 use log::debug;
 use mdoc_core::{
-    CborBytes, CoseDecodePayload, DeviceResponse, ElementValue, FullDate, MobileSecurityObject,
+    DeviceResponse, ElementValue, FullDate, MobileSecurityObject,
     Status,
 };
 use mdoc_data_retrieval_flow::{DataRetrievalFlowEvent, EngagementMethod, TransportKind};
@@ -167,11 +167,12 @@ fn print_issuer_signed_data(response: &DeviceResponse) -> Result<()> {
         println!("[INFO] Document[{doc_idx}] docType={}", doc.doc_type);
         log_issuer_auth_payload(
             doc_idx,
-            doc.issuer_signed
+            Some(doc.issuer_signed
                 .issuer_auth
-                .payload
-                .as_ref()
-                .map(CborBytes::raw_cbor_bytes),
+                .payload.as_ref()
+                .ok_or_else(|| anyhow::anyhow!("COSE_Sign1 payload is missing"))?
+                .raw_cbor_bytes()
+        ),
         );
         print_mso_status(doc)?;
         if let Some(x5chain) = &doc.issuer_signed.issuer_auth.unprotected.x5chain {
@@ -229,7 +230,9 @@ fn print_mso_status(doc: &mdoc_core::MdocDocument) -> Result<()> {
     let mso_bytes = doc
         .issuer_signed
         .issuer_auth
-        .decode_payload()
+        .payload.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("COSE_Sign1 payload is missing"))?
+        .decode()
         .context("failed to decode issuerAuth payload as tagged MobileSecurityObject bytes")?;
     let mso: MobileSecurityObject = mso_bytes
         .decode()

@@ -4,7 +4,6 @@ use minicbor::bytes::ByteVec;
 use minicbor::{Decode, Encode};
 use sha2::Sha256;
 
-use crate::cose_sign::CoseDecodePayload;
 use crate::{CborAny, CborBytes, CoseAlg, CoseVerify, GetCoseAlg, HeaderMap, ProtectedHeaderMap};
 
 type HmacSha256 = Hmac<Sha256>;
@@ -53,30 +52,12 @@ where
     }
 }
 
-impl<T> CoseDecodePayload<T> for CoseMac0<T>
-where
-    T: Encode<()> + for<'a> Decode<'a, ()>,
-{
-    fn decode_payload(&self) -> Result<T>
-    where
-        for<'a> T: Decode<'a, ()>,
-    {
-        let payload = self
-            .payload
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("COSE_Mac0 payload is missing"))?;
-        Ok(payload.decode()?)
-    }
-}
-
 impl<T> CoseVerify<[u8; 32]> for CoseMac0<T>
 where
     T: Encode<()> + for<'a> Decode<'a, ()>,
 {
     fn verify(&self, key: &[u8; 32], external_aad: &[u8]) -> Result<()> {
-        let payload = self
-            .payload
-            .as_ref()
+        let payload = self.payload.as_ref()
             .ok_or_else(|| anyhow::anyhow!("COSE_Mac0 payload is missing"))?;
         match self.alg()? {
             CoseAlg::HMAC256256 => {

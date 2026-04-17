@@ -2,8 +2,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use mdoc_core::{
-    derive_session_key, derive_shared_secret, CoseKeyPrivate, CoseMac0, CoseVerify,
-    DeviceNameSpaces, MdocDocument, SessionTranscript, TaggedCborBytes,
+    CoseKeyPrivate, CoseMac0, CoseVerify, DeviceNameSpaces, MdocDocument, SessionTranscript, TaggedCborBytes, derive_session_key, derive_shared_secret
 };
 use minicbor::{Decode, Encode};
 use p256::ecdsa::VerifyingKey;
@@ -131,10 +130,11 @@ fn verify_device_signature(
         return Err(MdocDeviceAuthError::DeviceAuthModeInvalid);
     }
 
-    if let Some(actual_payload) = device_signature.payload.as_ref() {
-        if actual_payload.raw_cbor_bytes() != expected_payload {
-            return Err(MdocDeviceAuthError::DeviceAuthPayloadMismatch);
-        }
+    let actual_payload = device_signature.payload.as_ref()
+        .ok_or_else(|| MdocDeviceAuthError::DeviceAuthenticationEncodingFailed("missing payload".into()))?
+        .raw_cbor_bytes();
+    if actual_payload != expected_payload {
+        return Err(MdocDeviceAuthError::DeviceAuthPayloadMismatch);
     }
 
     let verifying_key: VerifyingKey = (&ctx.verified_mso.mso.device_key_info.device_key)
@@ -181,10 +181,11 @@ fn verify_device_mac(
     emac_key: &[u8; 32],
     expected_payload: &[u8],
 ) -> Result<(), MdocDeviceAuthError> {
-    if let Some(payload) = mac0.payload.as_ref() {
-        if payload.raw_cbor_bytes() != expected_payload {
-            return Err(MdocDeviceAuthError::DeviceAuthPayloadMismatch);
-        }
+    let actual_payload = mac0.payload.as_ref()
+        .ok_or_else(|| MdocDeviceAuthError::DeviceAuthenticationEncodingFailed("missing payload".into()))?
+        .raw_cbor_bytes();
+    if actual_payload != expected_payload {
+        return Err(MdocDeviceAuthError::DeviceAuthPayloadMismatch);
     }
 
     mac0.verify(emac_key, b"").map_err(|err| {

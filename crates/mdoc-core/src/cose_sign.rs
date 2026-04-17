@@ -89,10 +89,6 @@ pub trait GetCoseAlg {
     fn alg(&self) -> Result<CoseAlg>;
 }
 
-pub trait CoseDecodePayload<T> {
-    fn decode_payload(&self) -> Result<T>;
-}
-
 pub trait CoseVerify<K> {
     fn verify(&self, key: &K, external_aad: &[u8]) -> Result<()>;
 }
@@ -110,30 +106,12 @@ where
     }
 }
 
-impl<T> CoseDecodePayload<T> for CoseSign1<T>
-where
-    T: Encode<()> + for<'a> Decode<'a, ()>,
-{
-    fn decode_payload(&self) -> Result<T>
-    where
-        for<'a> T: Decode<'a, ()>,
-    {
-        let payload = self
-            .payload
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("COSE_Sign1 payload is missing"))?;
-        Ok(payload.decode()?)
-    }
-}
-
 impl<T> CoseVerify<VerifyingKey> for CoseSign1<T>
 where
     T: Encode<()> + for<'a> Decode<'a, ()>,
 {
     fn verify(&self, key: &VerifyingKey, external_aad: &[u8]) -> Result<()> {
-        let payload = self
-            .payload
-            .as_ref()
+        let payload = self.payload.as_ref()
             .ok_or_else(|| anyhow::anyhow!("COSE_Sign1 payload is missing"))?;
         match self.alg()? {
             CoseAlg::ES256 | CoseAlg::ES256P256 => {
@@ -224,21 +202,8 @@ mod tests {
             signature: ByteVec::from(vec![0; 64]),
         };
 
-        let payload = sign1.decode_payload().unwrap();
+        let payload = sign1.payload.as_ref().unwrap().decode().unwrap();
         assert_eq!(payload, "hello");
-    }
-
-    #[test]
-    fn decode_payload_cbor_rejects_missing_payload() {
-        let sign1 = CoseSign1::<String> {
-            protected: CborBytes::from(&HeaderMap::default()),
-            unprotected: HeaderMap::default(),
-            payload: None,
-            signature: ByteVec::from(vec![0; 64]),
-        };
-
-        let result = sign1.decode_payload();
-        assert!(result.is_err());
     }
 
     #[test]
@@ -316,7 +281,7 @@ mod tests {
     }
 
     #[test]
-    fn resolved_alg_uses_protected_only() {
+    fn alg_uses_protected_only() {
         let sign1 = CoseSign1::<CborAny> {
             protected: CborBytes::from(&HeaderMap {
                 alg: Some(CoseAlg::ES256),
@@ -330,7 +295,7 @@ mod tests {
             signature: ByteVec::from(vec![0; 64]),
         };
 
-        assert_eq!(sign1.resolved_alg().unwrap(), CoseAlg::ES256);
+        assert_eq!(sign1.alg().unwrap(), CoseAlg::ES256);
     }
 
     #[test]
@@ -355,48 +320,7 @@ mod tests {
             payload: Some(payload),
             signature: ByteVec::from(signature.to_bytes().to_vec()),
         };
-        let public_key = p256::PublicKey::from_sec1_bytes(
-            signing_key
-                .verifying_key()
-                .to_encoded_point(false)
-                .as_bytes(),
-        )
-        .unwrap();
-        sign1.verify(&(&public_key).into(), b"").unwrap();
-    }
-
-    #[test]
-    fn verify_signature_with_public_key_detached_accepts_valid_es256_signature() {
-        let signing_key = SigningKey::from_bytes((&[8u8; 32]).into()).unwrap();
-        let detached_payload = vec![0x04, 0x05, 0x06];
-        let protected = CborBytes::from(&HeaderMap {
-            alg: Some(CoseAlg::ES256),
-            x5chain: None,
-        });
-        let sig_structure = minicbor::to_vec(SigStructureSignature1 {
-            context: "Signature1".to_string(),
-            body_protected: ByteVec::from(protected.raw_cbor_bytes().to_vec()),
-            external_aad: ByteVec::from(Vec::<u8>::new()),
-            payload: ByteVec::from(detached_payload.clone()),
-        })
-        .unwrap();
-        let signature: p256::ecdsa::Signature = signing_key.sign(&sig_structure);
-        let sign1 = CoseSign1::<CborAny> {
-            protected,
-            unprotected: HeaderMap::default(),
-            payload: None,
-            signature: ByteVec::from(signature.to_bytes().to_vec()),
-        };
-        let public_key = p256::PublicKey::from_sec1_bytes(
-            signing_key
-                .verifying_key()
-                .to_encoded_point(false)
-                .as_bytes(),
-        )
-        .unwrap();
-
-        sign1
-            .verify_detached_payload(&(&public_key).into(), b"", &detached_payload)
-            .unwrap();
+        let verifying_key = signing_key.verifying_key();
+        sign1.verify(verifying_key, b"").unwrap();
     }
 }
