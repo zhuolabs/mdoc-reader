@@ -1734,7 +1734,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mdoc-reader-cli"
+name = "mdoc-reader"
 version = "0.1.0"
 dependencies = [
  "anyhow",

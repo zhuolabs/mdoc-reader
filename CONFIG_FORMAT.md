@@ -37,4 +37,4 @@ Example:
 }
 ```
 
-`nameSpaces` is parsed by `serde_json::from_value` into `NameSpaces`, so app module (`crates/mdoc-reader-cli`) is the only place that depends on `serde_json`.
+`nameSpaces` is parsed by `serde_json::from_value` into `NameSpaces`, so app module (`apps/mdoc-reader`) is the only place that depends on `serde_json`.

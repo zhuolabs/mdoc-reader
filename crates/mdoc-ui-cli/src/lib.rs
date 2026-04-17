@@ -177,15 +177,6 @@ fn print_issuer_signed_data(response: &DeviceResponse) -> Result<()> {
     Ok(())
 }
 
-fn encode_hex(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        use std::fmt::Write as _;
-        let _ = write!(&mut out, "{:02x}", byte);
-    }
-    out
-}
-
 fn format_element_value(value: &ElementValue) -> String {
     if let Ok(v) = value.decode::<String>() {
         return format!("str({v})");

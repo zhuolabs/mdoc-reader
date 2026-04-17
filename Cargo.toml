@@ -9,7 +9,7 @@ members = [
     "crates/nfc-reader-pcsc",
     "crates/mdoc-transport-ble-winrt",
     "crates/mdoc-core",
-    "crates/mdoc-reader-cli",
+    "apps/mdoc-reader",
     "crates/mdoc-ui-cli",
     "crates/mdoc-ui",
     "crates/mdoc-security",

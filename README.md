@@ -3,7 +3,7 @@
 ## Logging
 
 This workspace now emits logs via the `log` facade.
-Initialize the logger only at binary entry points (for example `crates/mdoc-reader-cli/src/main.rs`) and control verbosity with `RUST_LOG`.
+Initialize the logger only at binary entry points (for example `apps/mdoc-reader/src/main.rs`) and control verbosity with `RUST_LOG`.
 
 Examples:
 
