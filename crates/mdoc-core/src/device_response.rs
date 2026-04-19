@@ -235,6 +235,7 @@ mod tests {
         CoseSign1::new(
             ProtectedHeaderMap::from(&HeaderMap {
                 alg: Some(CoseAlg::ES256),
+                typ: None,
                 x5chain: None,
             }),
             HeaderMap::default(),
@@ -266,6 +267,7 @@ mod tests {
         CoseSign1::new(
             ProtectedHeaderMap::from(&HeaderMap {
                 alg: Some(CoseAlg::ES256),
+                typ: None,
                 x5chain: None,
             }),
             HeaderMap::default(),

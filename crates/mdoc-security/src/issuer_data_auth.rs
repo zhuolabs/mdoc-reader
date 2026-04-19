@@ -56,7 +56,10 @@ impl fmt::Display for IssuerDataAuthError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingIssuerCertificate => {
-                write!(f, "issuerAuth did not contain a document signer certificate")
+                write!(
+                    f,
+                    "issuerAuth did not contain a document signer certificate"
+                )
             }
             Self::InvalidIssuerAuth(message) => write!(f, "invalid issuerAuth: {message}"),
             Self::InvalidMobileSecurityObject(message) => {
@@ -70,7 +73,10 @@ impl fmt::Display for IssuerDataAuthError {
             }
             Self::InvalidValidityRange => write!(f, "MSO validity range is inverted"),
             Self::DocumentNotYetValid { now, valid_from } => {
-                write!(f, "document is not yet valid at {now}; valid_from={valid_from}")
+                write!(
+                    f,
+                    "document is not yet valid at {now}; valid_from={valid_from}"
+                )
             }
             Self::DocumentExpired { now, valid_until } => {
                 write!(f, "document expired at {valid_until}; now={now}")
@@ -81,7 +87,10 @@ impl fmt::Display for IssuerDataAuthError {
             Self::MissingDigest {
                 namespace,
                 digest_id,
-            } => write!(f, "missing digest for namespace {namespace} and digestID {digest_id}"),
+            } => write!(
+                f,
+                "missing digest for namespace {namespace} and digestID {digest_id}"
+            ),
             Self::DigestMismatch {
                 namespace,
                 element_identifier,
@@ -103,7 +112,9 @@ pub fn verify_issuer_data_auth(
     let issuer_auth = &doc.issuer_signed.issuer_auth;
 
     let issuer_cert = issuer_auth
-        .x5chain()
+        .unprotected
+        .x5chain
+        .as_deref()
         .ok_or_else(|| IssuerDataAuthError::InvalidIssuerAuth("missing x5chain".into()))?
         .first()
         .ok_or_else(|| IssuerDataAuthError::MissingIssuerCertificate)?;
@@ -189,7 +200,7 @@ fn verify_name_space_digests(
         other => {
             return Err(IssuerDataAuthError::UnsupportedDigestAlgorithm(
                 other.to_string(),
-            ))
+            ));
         }
     };
 
@@ -399,10 +410,12 @@ mod tests {
         let cert = x509_cert::Certificate::from_der(cert_der).unwrap();
         let protected = ProtectedHeaderMap::from(&HeaderMap {
             alg: Some(CoseAlg::ES256),
+            typ: None,
             x5chain: None,
         });
         let unprotected = HeaderMap {
             alg: None,
+            typ: None,
             x5chain: Some(X5Chain::from_certificates(vec![cert]).unwrap()),
         };
         let payload_bytes = CborBytes::from(&payload);
