@@ -88,7 +88,22 @@ This plan assumes implementation through Phase 2:
 - Phase 1: identifier-list support
 - Phase 2: status-list support
 
+Implementation policy:
+
+- `identifier_list` and `status_list` will be implemented as separate work items, not as a single combined implementation
+- Phase 1 explicitly covers only the unimplemented `identifier_list` path
+- `status_list` work is deferred to Phase 2
+- on the `mdoc-core` side, structure definitions should prefer `minicbor_derive` and `cbor_string_map_struct`
+- manual `minicbor::Decode` / `Encode` implementations should be avoided unless they are clearly necessary for an ISO shape that cannot be expressed cleanly with those helpers
+
 ### Planned structures for `mdoc-core`
+
+Implementation style for `mdoc-core`:
+
+- prefer declarative CBOR structure definitions over handwritten codec logic
+- use `minicbor_derive` where indexed CBOR structures fit naturally
+- use `cbor_string_map_struct` where string-keyed CBOR maps fit naturally
+- only add manual `Decode` / `Encode` implementations for cases that cannot be represented reasonably with the existing derive/macros
 
 The following structures are expected to be added on the `mdoc-core` side.
 
@@ -240,19 +255,13 @@ pub enum MsoRevocationMechanism {
 
 Suggested error categories:
 
-- missing `status`
-- both `identifier_list` and `status_list` present
-- unsupported or malformed URI
-- download failure
-- invalid COSE structure
-- missing required claims
-- unsupported content type
-- missing `x5chain`
-- invalid revocation-list certificate chain
-- invalid signature
-- expired revocation list
-- malformed identifier list
-- malformed status list
+The initial implementation should keep the error surface small and avoid over-classifying parse failures.
+
+- invalid MSO status selection
+- invalid or unsupported revocation-list URI
+- revocation-list download failure
+- invalid revocation list
+- revocation check failed
 
 ## Validation Flow
 
@@ -364,6 +373,7 @@ This should be implemented first because:
 - the project already has a real captured example in `b02c`
 - the MSO already exposes `IdentifierListInfo`
 - the revocation decision is simple membership lookup
+- this keeps the first milestone scoped to the currently unimplemented `identifier_list` path without mixing in `status_list` concerns
 
 Deliverables:
 
@@ -372,6 +382,7 @@ Deliverables:
 - signature and certificate validation path
 - membership-based revocation decision
 - tests using `b02c` as a fixture
+- `mdoc-core` structure definitions implemented primarily with `minicbor_derive` and `cbor_string_map_struct`
 
 ### Phase 2: Status list support
 
