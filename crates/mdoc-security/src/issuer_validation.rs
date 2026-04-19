@@ -11,7 +11,9 @@ pub async fn validate_document_x5chain(
     now: SystemTime,
 ) -> Result<CertificateValidationOutcome, crate::ValidationError> {
     let x5chain = issuer_auth
-        .x5chain()
+        .unprotected
+        .x5chain
+        .as_deref()
         .ok_or(crate::ValidationError::InvalidChain)?;
 
     validate_x5chain(root_certificate, x5chain, skip_crl, now).await

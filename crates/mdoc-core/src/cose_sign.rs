@@ -1,8 +1,8 @@
 use anyhow::Result;
 use minicbor::bytes::ByteVec;
 use minicbor::{Decode, Encode};
-use p256::ecdsa::signature::Verifier;
 use p256::ecdsa::VerifyingKey;
+use p256::ecdsa::signature::Verifier;
 
 use crate::{CborAny, CborBytes, X5Chain};
 
@@ -13,13 +13,13 @@ where
     T: Encode<()> + for<'a> Decode<'a, ()>,
 {
     #[n(0)]
-    protected: CborBytes<HeaderMap>,
+    pub protected: CborBytes<HeaderMap>,
     #[n(1)]
-    unprotected: HeaderMap,
+    pub unprotected: HeaderMap,
     #[n(2)]
-    payload: Option<CborBytes<T>>,
+    pub payload: Option<CborBytes<T>>,
     #[n(3)]
-    signature: ByteVec,
+    pub signature: ByteVec,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Decode, Encode)]
@@ -35,11 +35,13 @@ struct SigStructureSignature1 {
     payload: ByteVec,
 }
 
-#[derive(Debug, Clone, Decode, PartialEq, Eq, Encode, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Decode, Encode, Default)]
 #[cbor(map)]
 pub struct HeaderMap {
     #[n(1)]
     pub alg: Option<CoseAlg>,
+    #[n(16)]
+    pub typ: Option<String>,
     #[n(33)]
     pub x5chain: Option<X5Chain>,
 }
@@ -187,23 +189,20 @@ where
             signature,
         }
     }
-
-    pub fn x5chain(&self) -> Option<&[x509_cert::Certificate]> {
-        self.unprotected.x5chain.as_ref().map(|v| v.as_slice())
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use minicbor::Encoder;
-    use p256::ecdsa::signature::Signer;
     use p256::ecdsa::SigningKey;
+    use p256::ecdsa::signature::Signer;
 
     #[test]
     fn protected_header_map_roundtrips_non_empty_bstr() {
         let protected = CborBytes::from(&HeaderMap {
             alg: Some(CoseAlg::ES256),
+            typ: None,
             x5chain: None,
         });
         let encoded = minicbor::to_vec(&protected).unwrap();
@@ -321,10 +320,12 @@ mod tests {
         let sign1 = CoseSign1::<CborAny> {
             protected: CborBytes::from(&HeaderMap {
                 alg: Some(CoseAlg::ES256),
+                typ: None,
                 x5chain: None,
             }),
             unprotected: HeaderMap {
                 alg: Some(CoseAlg::ED25519),
+                typ: None,
                 x5chain: None,
             },
             payload: Some(CborBytes::from_raw_bytes(vec![0x01])),
@@ -340,6 +341,7 @@ mod tests {
         let payload = CborBytes::from_raw_bytes(vec![0x01, 0x02, 0x03]);
         let protected = CborBytes::from(&HeaderMap {
             alg: Some(CoseAlg::ES256),
+            typ: None,
             x5chain: None,
         });
         let sig_structure = minicbor::to_vec(SigStructureSignature1 {

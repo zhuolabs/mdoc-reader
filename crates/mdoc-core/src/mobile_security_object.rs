@@ -1,5 +1,6 @@
-use crate::cbor_string_map_struct::cbor_string_map_struct;
 use crate::CoseKeyPublic;
+use crate::cbor_string_map_struct::cbor_string_map_struct;
+use crate::{IdentifierListInfo, StatusListInfo};
 use minicbor::bytes::ByteVec;
 use minicbor::data::Tagged;
 use std::collections::BTreeMap;
@@ -52,32 +53,6 @@ cbor_string_map_struct! {
         optional {
             pub identifier_list: IdentifierListInfo => "identifier_list",
             pub status_list: StatusListInfo => "status_list",
-        }
-    }
-}
-
-cbor_string_map_struct! {
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct IdentifierListInfo {
-        required {
-            pub id: Identifier => "id",
-            pub uri: URI => "uri",
-        }
-        optional {
-            pub certificate: Certificate => "certificate",
-        }
-    }
-}
-
-cbor_string_map_struct! {
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct StatusListInfo {
-        required {
-            pub idx: u64 => "idx",
-            pub uri: URI => "uri",
-        }
-        optional {
-            pub certificate: Certificate => "certificate",
         }
     }
 }

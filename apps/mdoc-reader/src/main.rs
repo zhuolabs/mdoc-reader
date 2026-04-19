@@ -1,20 +1,28 @@
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use clap::Parser;
 use log::info;
 use mdoc_core::{CoseKeyPrivate, DeviceRequest, NameSpaces};
 use mdoc_reader_flow::read_mdoc;
 use mdoc_transport_ble_winrt::WinRtBleMdocTransportFactory;
-use mdoc_ui_cli::{render_device_response, ConsoleDataRetrievalFlowObserver};
+use mdoc_ui_cli::{ConsoleDataRetrievalFlowObserver, render_device_response};
 use nfc_reader_pcsc::PcscReader;
 use serde_json::Value;
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 use url::Url;
 use uuid::Uuid;
 
 #[derive(Debug, Parser)]
 #[command(about = "Read mdoc via NFC + BLE")]
 struct Cli {
-    #[arg(long, value_name = "PATH", help = "Read request JSON from file", required = true)]
+    #[arg(
+        long,
+        value_name = "PATH",
+        help = "Read request JSON from file",
+        required = true
+    )]
     request: String,
 
     #[arg(long, value_name = "UUID", help = "BLE service UUID")]
@@ -78,7 +86,12 @@ fn load_request_file(path: impl AsRef<Path>) -> anyhow::Result<RequestConfig> {
     let base_dir = canonical_path
         .parent()
         .map(Path::to_path_buf)
-        .ok_or_else(|| anyhow!("failed to resolve request base directory: {}", canonical_path.display()))?;
+        .ok_or_else(|| {
+            anyhow!(
+                "failed to resolve request base directory: {}",
+                canonical_path.display()
+            )
+        })?;
 
     Ok(RequestConfig { json, base_dir })
 }

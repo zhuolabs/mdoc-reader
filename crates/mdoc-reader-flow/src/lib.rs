@@ -1,8 +1,8 @@
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use log::info;
 use mdoc_core::{CoseKeyPrivate, DeviceRequest, DeviceResponse, SessionTranscript};
 use mdoc_data_retrieval_flow::DataRetrievalFlowObserver;
-use mdoc_security::IssuerDataAuthContext;
+use mdoc_security::{IssuerDataAuthContext, MsoRevocationState};
 use mdoc_transport::{BleTransportParams, MdocTransportConnector};
 use nfc_reader::NfcReader;
 use std::time::SystemTime;
@@ -61,7 +61,9 @@ async fn validate_device_response(
                     SystemTime::now(),
                 )
                 .await
-                .with_context(|| format!("certificate_validation failed docType={}", doc.doc_type))?;
+                .with_context(|| {
+                    format!("certificate_validation failed docType={}", doc.doc_type)
+                })?;
                 info!(
                     "[OK] Certificate validation result for docType={}: {:?}",
                     doc.doc_type, result
@@ -81,6 +83,28 @@ async fn validate_device_response(
                     doc.doc_type
                 )
             })?;
+
+            let revocation =
+                mdoc_security::check_mso_revocation(&verified, iaca_cert, chrono::Utc::now())
+                    .await
+                    .with_context(|| format!("mso_revocation failed docType={}", doc.doc_type))?;
+            match revocation.state {
+                MsoRevocationState::NotChecked => {
+                    info!(
+                        "[OK] MSO revocation not checked for docType={}",
+                        doc.doc_type
+                    );
+                }
+                MsoRevocationState::NotRevoked => {
+                    info!(
+                        "[OK] MSO revocation check passed for docType={}: {:?}",
+                        doc.doc_type, revocation
+                    );
+                }
+                MsoRevocationState::Revoked => {
+                    return Err(anyhow!("MSO revoked docType={}", doc.doc_type));
+                }
+            }
 
             mdoc_security::verify_mdoc_device_auth(
                 &doc.device_signed,
