@@ -1,4 +1,4 @@
-use mdoc_core::{CoseKeyPrivate, DeviceRequest, DeviceResponse, SessionTranscript};
+use mdoc_core::{CoseKeyPrivate, DeviceRequest, DeviceResponse};
 use mdoc_data_retrieval_flow::DataRetrievalFlowObserver;
 use mdoc_transport::{BleTransportParams, MdocTransportConnector};
 use nfc_reader::NfcReader;
