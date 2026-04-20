@@ -23,8 +23,8 @@ hmac = "0.12"
 minicbor = { version = "2.2", features = ["derive", "std"] }
 p256 = { version = "0.13", features = ["ecdh"] }
 x509-cert = "0.2"
+hex = "0.4"
 
 [dev-dependencies]
-hex = "0.4"
 rcgen = "0.13"
 tokio = { version = "1", features = ["macros", "rt"] }
