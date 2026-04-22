@@ -34,6 +34,11 @@ For each mdoc type, you need at least:
 - the data element identifiers in each namespace
 
 You should obtain this information from the issuer or from documentation provided for the mdoc you want to read.
+For some document types, Apple also publishes related identifier information here:
+
+- https://developer.apple.com/documentation/passkit/pkidentitydriverslicensedescriptor/
+- https://developer.apple.com/documentation/passkit/pkidentitynationalidcarddescriptor/
+
 After that, create a `request.json` file and pass it with `--request`.
 
 ### IACA Certificate
@@ -43,7 +48,7 @@ This certificate is also typically provided by the issuer.
 
 For mdocs that can be provisioned into Apple Wallet, Apple provides information here:
 
-- https://developer.apple.com/wallet/id-verifier/
+- https://developer.apple.com/wallet/get-started-with-verify-with-wallet/
 
 In this implementation, `iacaCert` is optional.
 However, in normal usage it is required if you want to verify that the mdoc was actually issued by the issuer.
