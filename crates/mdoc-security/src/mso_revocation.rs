@@ -178,7 +178,9 @@ async fn validate_identifier_list_token(
     let token: CborWebToken = sign1
         .payload()
         .ok_or_else(|| {
-            MsoRevocationError::InvalidRevocationList("revocation-list payload is missing".to_string())
+            MsoRevocationError::InvalidRevocationList(
+                "revocation-list payload is missing".to_string(),
+            )
         })?
         .decode()
         .map_err(|err| MsoRevocationError::InvalidRevocationList(err.to_string()))?;

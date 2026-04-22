@@ -10,6 +10,7 @@ mdoc-transport-ble-winrt = { path = "../../crates/mdoc-transport-ble-winrt" }
 mdoc-data-retrieval-flow = { path = "../../crates/mdoc-data-retrieval-flow" }
 mdoc-data-retrieval-flow-nfc-ble = { path = "../../crates/mdoc-data-retrieval-flow-nfc-ble" }
 mdoc-reader-flow = { path = "../../crates/mdoc-reader-flow" }
+mdoc-ui = { path = "../../crates/mdoc-ui" }
 mdoc-ui-cli = { path = "../../crates/mdoc-ui-cli" }
 mdoc-security = { path = "../../crates/mdoc-security" }
 anyhow = "1"

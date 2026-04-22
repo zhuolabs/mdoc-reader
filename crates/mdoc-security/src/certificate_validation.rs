@@ -301,8 +301,6 @@ fn map_webpki_error_to_validation_error(err: WebPkiError) -> ValidationError {
 }
 
 async fn download_remote_bytes(url: &Url, kind: RemoteDerKind) -> Result<Vec<u8>, ValidationError> {
-    ensure_https_url(url, kind)?;
-
     info!(
         "certificate_validation: downloading {} url={url}",
         kind.label()
@@ -382,17 +380,6 @@ fn decode_pem_or_der(bytes: &[u8], kind: RemoteDerKind) -> Result<Vec<u8>, Valid
             kind.label()
         ))
     })
-}
-
-fn ensure_https_url(url: &Url, kind: RemoteDerKind) -> Result<(), ValidationError> {
-    if url.scheme() == "https" {
-        return Ok(());
-    }
-
-    Err(ValidationError::Unavailable(format!(
-        "only https {} URLs are supported",
-        kind.label()
-    )))
 }
 
 impl RemoteDerKind {

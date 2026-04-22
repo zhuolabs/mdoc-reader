@@ -1747,6 +1747,7 @@ dependencies = [
  "mdoc-reader-flow",
  "mdoc-security",
  "mdoc-transport-ble-winrt",
+ "mdoc-ui",
  "mdoc-ui-cli",
  "nfc-reader-pcsc",
  "serde_json",
