@@ -32,7 +32,7 @@ Validate an mdoc reader authentication certificate chain (`x5chain`) against a c
 ### Inputs
 - `root_certificate: &x509_cert::Certificate`
 - `x5chain: &[x509_cert::Certificate]` (leaf first)
-- `skip_crl: bool`
+- `ignore_crl: bool`
 - `now: SystemTime`
 
 ### Current implementation status
@@ -47,15 +47,15 @@ Implemented in this repository:
   - PEM / DER both supported.
   - `reqwest` + `rustls` + native roots.
   - timeout and status checks.
-- `validate_x5chain(root_certificate, x5chain, skip_crl, now)`
+- `validate_x5chain(root_certificate, x5chain, ignore_crl, now)`
   - DER encode for root certificate + chain certificates where required by the validation backend.
   - validity period checks (`notBefore` / `notAfter`).
   - chain linkage checks via issuer/subject matching.
   - basic constraints checks (CA/non-CA consistency).
   - leaf keyUsage check (`digitalSignature`) when extension exists.
-  - When `skip_crl` is `false`, extracts CRL distribution point URIs from the root certificate and downloads CRLs sequentially.
+  - When `ignore_crl` is `false`, extracts CRL distribution point URIs from the root certificate and downloads CRLs sequentially.
   - Uses any successfully downloaded CRLs for revocation checking.
-- `validate_document_x5chain(issuer_auth, root_certificate, skip_crl, now)`
+- `validate_document_x5chain(issuer_auth, root_certificate, ignore_crl, now)`
   - Implemented in `issuer_validation`.
   - Extracts `x5chain` from `issuerAuth` and delegates to `validate_x5chain`.
 
@@ -85,6 +85,7 @@ Implement MSO revocation logic based on section 12.3.6 using `VerifiedMso` and `
 ### Planned inputs
 - `verified_mso: VerifiedMso`
 - `iacacert_der: &[u8]`
+- `ignore_crl: bool`
 
 ### Planned behavior (12.3.6.2)
 1. Extract status endpoint URL from `Status` in MSO.

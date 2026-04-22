@@ -9,7 +9,7 @@ pub(crate) async fn validate_device_response(
     e_self_private_key: &CoseKeyPrivate,
     session_transcript: &SessionTranscript,
     iaca_cert: Option<&x509_cert::Certificate>,
-    skip_crl: bool,
+    ignore_crl: bool,
 ) -> anyhow::Result<()> {
     if let Some(response_documents) = response.documents.as_ref() {
         for doc in response_documents {
@@ -17,7 +17,7 @@ pub(crate) async fn validate_device_response(
                 let result = mdoc_security::validate_document_x5chain(
                     &doc.issuer_signed.issuer_auth,
                     cert,
-                    skip_crl,
+                    ignore_crl,
                     SystemTime::now(),
                 )
                 .await
@@ -44,10 +44,14 @@ pub(crate) async fn validate_device_response(
                 )
             })?;
 
-            let revocation =
-                mdoc_security::check_mso_revocation(&verified, iaca_cert, chrono::Utc::now())
-                    .await
-                    .with_context(|| format!("mso_revocation failed docType={}", doc.doc_type))?;
+            let revocation = mdoc_security::check_mso_revocation(
+                &verified,
+                iaca_cert,
+                ignore_crl,
+                chrono::Utc::now(),
+            )
+            .await
+            .with_context(|| format!("mso_revocation failed docType={}", doc.doc_type))?;
             match revocation.state {
                 MsoRevocationState::NotChecked => {
                     info!(

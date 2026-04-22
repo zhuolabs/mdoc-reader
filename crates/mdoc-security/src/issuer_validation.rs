@@ -7,7 +7,7 @@ use crate::certificate_validation::{CertificateValidationOutcome, validate_x5cha
 pub async fn validate_document_x5chain(
     issuer_auth: &CoseSign1<TaggedCborBytes<MobileSecurityObject>>,
     root_certificate: &x509_cert::Certificate,
-    skip_crl: bool,
+    ignore_crl: bool,
     now: SystemTime,
 ) -> Result<CertificateValidationOutcome, crate::ValidationError> {
     let x5chain = issuer_auth
@@ -16,5 +16,5 @@ pub async fn validate_document_x5chain(
         .as_deref()
         .ok_or(crate::ValidationError::InvalidChain)?;
 
-    validate_x5chain(root_certificate, x5chain, skip_crl, now).await
+    validate_x5chain(root_certificate, x5chain, ignore_crl, now).await
 }

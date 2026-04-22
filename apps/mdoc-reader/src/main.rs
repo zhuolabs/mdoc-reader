@@ -34,7 +34,7 @@ struct Cli {
         long,
         help = "Skip CRL download and revocation check during certificate validation"
     )]
-    skip_crl: bool,
+    ignore_crl: bool,
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -63,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
         &device_request,
         Some(&observer),
         iaca_cert.as_ref(),
-        cli.skip_crl,
+        cli.ignore_crl,
     )
     .await?;
     let mut result_ui = ConsoleMdocUi;

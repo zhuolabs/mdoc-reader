@@ -16,7 +16,7 @@ pub async fn read_mdoc<T, F>(
     device_request: &DeviceRequest,
     observer: Option<&dyn DataRetrievalFlowObserver>,
     iaca_cert: Option<&x509_cert::Certificate>,
-    skip_crl: bool,
+    ignore_crl: bool,
 ) -> anyhow::Result<DeviceResponse>
 where
     T: NfcReader + ?Sized,
@@ -32,7 +32,7 @@ where
         e_reader_key_private,
         &result.session_transcript,
         iaca_cert,
-        skip_crl,
+        ignore_crl,
     )
     .await?;
 

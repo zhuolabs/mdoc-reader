@@ -55,7 +55,7 @@ pub async fn download_x509_certificate(
 pub async fn validate_x5chain(
     root_certificate: &x509_cert::Certificate,
     x5chain: &[x509_cert::Certificate],
-    skip_crl: bool,
+    ignore_crl: bool,
     now: SystemTime,
 ) -> Result<CertificateValidationOutcome, ValidationError> {
     let root_certificate_der = root_certificate
@@ -63,7 +63,7 @@ pub async fn validate_x5chain(
         .map_err(|err| ValidationError::Parse(err.to_string()))?;
 
     info!(
-        "certificate_validation: start root_bytes={} chain_len={} skip_crl={skip_crl}",
+        "certificate_validation: start root_bytes={} chain_len={} ignore_crl={ignore_crl}",
         root_certificate_der.len(),
         x5chain.len()
     );
@@ -101,7 +101,7 @@ pub async fn validate_x5chain(
     );
 
     let downloaded_crls =
-        download_crls_for_chain_if_enabled(root_certificate, x5chain, skip_crl).await?;
+        download_crls_for_chain_if_enabled(root_certificate, x5chain, ignore_crl).await?;
     let crl_refs = downloaded_crls.iter().collect::<Vec<_>>();
     let revocation = if crl_refs.is_empty() {
         None
@@ -115,7 +115,7 @@ pub async fn validate_x5chain(
                 .build(),
         )
     };
-    let crl_checked = !skip_crl && !crl_refs.is_empty();
+    let crl_checked = !ignore_crl && !crl_refs.is_empty();
 
     end_entity
         .verify_for_usage(
@@ -136,9 +136,9 @@ pub async fn validate_x5chain(
 async fn download_crls_for_chain_if_enabled(
     root_certificate: &x509_cert::Certificate,
     x5chain: &[x509_cert::Certificate],
-    skip_crl: bool,
+    ignore_crl: bool,
 ) -> Result<Vec<CertRevocationList<'static>>, ValidationError> {
-    if skip_crl {
+    if ignore_crl {
         info!("certificate_validation: CRL check skipped");
         return Ok(Vec::new());
     }

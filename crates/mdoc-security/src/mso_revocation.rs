@@ -50,6 +50,7 @@ pub enum MsoRevocationError {
 pub async fn check_mso_revocation(
     verified_mso: &VerifiedMso,
     iaca_cert: Option<&x509_cert::Certificate>,
+    ignore_crl: bool,
     now: DateTime<Utc>,
 ) -> Result<MsoRevocationCheck, MsoRevocationError> {
     let Some(status) = &verified_mso.mso.status else {
@@ -61,7 +62,7 @@ pub async fn check_mso_revocation(
     };
 
     match (&status.identifier_list, &status.status_list) {
-        (Some(info), None) => check_identifier_list(info, iaca_cert, now).await,
+        (Some(info), None) => check_identifier_list(info, iaca_cert, ignore_crl, now).await,
         (None, Some(_)) => Err(MsoRevocationError::UnsupportedStatusList),
         (Some(_), Some(_)) => Err(MsoRevocationError::InvalidStatus(
             "both identifier_list and status_list are present",
@@ -75,6 +76,7 @@ pub async fn check_mso_revocation(
 async fn check_identifier_list(
     info: &IdentifierListInfo,
     iaca_cert: Option<&x509_cert::Certificate>,
+    ignore_crl: bool,
     now: DateTime<Utc>,
 ) -> Result<MsoRevocationCheck, MsoRevocationError> {
     let source_uri =
@@ -86,17 +88,18 @@ async fn check_identifier_list(
     }
 
     let bytes = download_revocation_list(&source_uri).await?;
-    evaluate_identifier_list_bytes(&bytes, info, iaca_cert, now, source_uri).await
+    evaluate_identifier_list_bytes(&bytes, info, iaca_cert, ignore_crl, now, source_uri).await
 }
 
 async fn evaluate_identifier_list_bytes(
     bytes: &[u8],
     info: &IdentifierListInfo,
     iaca_cert: Option<&x509_cert::Certificate>,
+    ignore_crl: bool,
     now: DateTime<Utc>,
     source_uri: Url,
 ) -> Result<MsoRevocationCheck, MsoRevocationError> {
-    let token = validate_identifier_list_token(&bytes, info, iaca_cert, now).await?;
+    let token = validate_identifier_list_token(&bytes, info, iaca_cert, ignore_crl, now).await?;
     debug!(
         "mso_revocation: identifier_list own_identifier={}",
         hex_string(info.id.as_slice()),
@@ -147,6 +150,7 @@ async fn validate_identifier_list_token(
     bytes: &[u8],
     info: &IdentifierListInfo,
     iaca_cert: Option<&x509_cert::Certificate>,
+    ignore_crl: bool,
     now: DateTime<Utc>,
 ) -> Result<CborWebToken, MsoRevocationError> {
     let sign1 = decode_cose_sign1(bytes)?;
@@ -167,8 +171,13 @@ async fn validate_identifier_list_token(
         MsoRevocationError::InvalidRevocationList("protected x5chain is missing".to_string())
     })?;
     let trust_point = select_trust_point(info, iaca_cert)?;
-    let validation =
-        validate_x5chain(&trust_point, x5chain, false, system_time_from_datetime(now)).await?;
+    let validation = validate_x5chain(
+        &trust_point,
+        x5chain,
+        ignore_crl,
+        system_time_from_datetime(now),
+    )
+    .await?;
     info!("mso_revocation: x5chain validation result={validation:?}");
 
     sign1.verify(&x5chain[0], b"").map_err(|err| {
@@ -284,6 +293,7 @@ mod tests {
                 .as_ref()
                 .unwrap(),
             Some(&fixture.root_cert),
+            false,
             fixture.now,
         )
         .await
@@ -313,6 +323,7 @@ mod tests {
             &fixture.token_bytes,
             info,
             Some(&fixture.root_cert),
+            false,
             fixture.now,
             Url::parse(&info.uri).unwrap(),
         )
@@ -342,6 +353,7 @@ mod tests {
             &fixture.token_bytes,
             info,
             None,
+            false,
             fixture.now,
             Url::parse(&info.uri).unwrap(),
         )
