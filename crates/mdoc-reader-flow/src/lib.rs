@@ -11,12 +11,12 @@ use validation::validate_device_response;
 pub async fn read_mdoc<T, F>(
     nfc: &mut T,
     transport: &F,
-    service_uuid: Option<Uuid>,
     e_reader_key_private: &CoseKeyPrivate,
     device_request: &DeviceRequest,
+    ignore_crl: bool,
     observer: Option<&dyn DataRetrievalFlowObserver>,
     iaca_cert: Option<&x509_cert::Certificate>,
-    ignore_crl: bool,
+    service_uuid: Option<Uuid>,
 ) -> anyhow::Result<DeviceResponse>
 where
     T: NfcReader + ?Sized,

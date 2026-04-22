@@ -58,12 +58,12 @@ async fn main() -> anyhow::Result<()> {
     let response = read_mdoc(
         &mut nfc,
         &transport_factory,
-        cli.service_uuid,
         &e_reader_key_private,
         &device_request,
+        cli.ignore_crl,
         Some(&observer),
         iaca_cert.as_ref(),
-        cli.ignore_crl,
+        cli.service_uuid,
     )
     .await?;
     let mut result_ui = ConsoleMdocUi;
