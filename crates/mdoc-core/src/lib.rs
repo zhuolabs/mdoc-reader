@@ -38,7 +38,7 @@ pub use device_response::{
     DEVICE_RESPONSE_STATUS_GENERAL_ERROR, DEVICE_RESPONSE_STATUS_OK, DeviceAuth, DeviceNameSpaces,
     DeviceResponse, DeviceSigned, IssuerSigned, IssuerSignedItem, MdocDocument,
 };
-pub use ident::ble_ident;
+pub use ident::{ble_ident, wifi_aware_service_name};
 pub use identifier_list::{IdentifierInfo, IdentifierList, IdentifierListInfo};
 pub use mobile_security_object::{
     Certificate, DataElements, DeviceKeyInfo, DigestIds, Identifier, KeyAuthorizations, KeyInfo,
