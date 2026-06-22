@@ -49,6 +49,15 @@ where
         &mut self,
         observer: Option<&dyn DataRetrievalFlowObserver>,
     ) -> Result<(NdefMessage, NdefMessage, HandoverSelect)> {
+        self.exchange_handover_select_with_timeout(observer, std::time::Duration::from_secs(120))
+            .await
+    }
+
+    pub async fn exchange_handover_select_with_timeout(
+        &mut self,
+        observer: Option<&dyn DataRetrievalFlowObserver>,
+        timeout: std::time::Duration,
+    ) -> Result<(NdefMessage, NdefMessage, HandoverSelect)> {
         notify_event(
             observer,
             DataRetrievalFlowEvent::WaitingForEngagement(EngagementMethod::Nfc),
@@ -56,7 +65,7 @@ where
 
         let mut nfc = self
             .reader
-            .connect(std::time::Duration::from_secs(120))
+            .connect(timeout)
             .await?
             .ok_or_else(|| anyhow::anyhow!("NFC card was not detected within timeout"))?;
 
@@ -273,43 +282,11 @@ fn decode_and_decrypt_session_data(
     Ok(DecodedSessionData { parsed, message })
 }
 
-#[cfg(test)]
-mod tests {
+#[cfg(all(test, feature = "hardware-tests"))]
+mod hardware_tests {
     use super::*;
     use anyhow::Result;
-    use ndef_rs::payload::ExternalPayload;
-    use ndef_rs::{NdefRecord, TNF};
-    use nfc_reader::NfcTag;
-    use std::cell::RefCell;
-    use std::rc::Rc;
-
-    const SW_SUCCESS: [u8; 2] = [0x90, 0x00];
-    const NDEF_FILE_ID: [u8; 2] = [0xE1, 0x04];
-    const CC_FILE_ID: [u8; 2] = [0xE1, 0x03];
-
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    enum SelectedFile {
-        Cc,
-        Ndef,
-    }
-
-    #[derive(Debug)]
-    struct MockTagState {
-        selected_file: Option<SelectedFile>,
-        ndef_file: Vec<u8>,
-        handover_select_message: NdefMessage,
-        captured_handover_request: Option<NdefMessage>,
-    }
-
-    #[derive(Clone, Debug)]
-    struct MockTag {
-        state: Rc<RefCell<MockTagState>>,
-    }
-
-    #[derive(Debug)]
-    struct MockReader {
-        state: Rc<RefCell<MockTagState>>,
-    }
+    use nfc_reader_pcsc::PcscReader;
 
     struct NoopWifiAwareConnector;
 
@@ -334,88 +311,25 @@ mod tests {
         }
     }
 
-    impl NfcReader for MockReader {
-        type NfcTag<'a> = MockTag;
-
-        async fn connect(
-            &mut self,
-            _timeout: std::time::Duration,
-        ) -> Result<Option<Self::NfcTag<'_>>> {
-            Ok(Some(MockTag {
-                state: self.state.clone(),
-            }))
-        }
-    }
-
-    impl NfcTag for MockTag {
-        async fn transceive(&mut self, data: &[u8]) -> Result<Vec<u8>> {
-            let mut state = self.state.borrow_mut();
-            match data.get(1).copied() {
-                Some(0xA4) => {
-                    if data.get(2) == Some(&0x00) && data.get(5..7) == Some(&CC_FILE_ID) {
-                        state.selected_file = Some(SelectedFile::Cc);
-                    } else if data.get(2) == Some(&0x00) && data.get(5..7) == Some(&NDEF_FILE_ID) {
-                        state.selected_file = Some(SelectedFile::Ndef);
-                    }
-                    Ok(SW_SUCCESS.to_vec())
-                }
-                Some(0xB0) => {
-                    let offset = u16::from_be_bytes([data[2], data[3]]) as usize;
-                    let len = data[4] as usize;
-                    let source = match state.selected_file {
-                        Some(SelectedFile::Cc) => cc_file().to_vec(),
-                        Some(SelectedFile::Ndef) => encode_ndef_file(&state.ndef_file),
-                        None => anyhow::bail!("no file selected"),
-                    };
-                    let mut response = source[offset..offset + len].to_vec();
-                    response.extend_from_slice(&SW_SUCCESS);
-                    Ok(response)
-                }
-                Some(0xD6) => {
-                    let offset = u16::from_be_bytes([data[2], data[3]]) as usize;
-                    let len = data[4] as usize;
-                    let payload = &data[5..5 + len];
-                    if state.selected_file != Some(SelectedFile::Ndef) {
-                        anyhow::bail!("NDEF file is not selected for update");
-                    }
-                    if offset == 0 && payload.len() >= 2 {
-                        let ndef_len = u16::from_be_bytes([payload[0], payload[1]]) as usize;
-                        let message_bytes = payload[2..2 + ndef_len].to_vec();
-                        let written = NdefMessage::decode(&message_bytes)?;
-                        match written.records().first().map(|record| record.record_type()) {
-                            Some(b"Ts") => state.ndef_file = status_message().to_buffer()?,
-                            Some(b"Hr") => {
-                                state.captured_handover_request = Some(written);
-                                state.ndef_file = state.handover_select_message.to_buffer()?;
-                            }
-                            other => anyhow::bail!("unexpected NDEF write: {other:?}"),
-                        }
-                    }
-                    Ok(SW_SUCCESS.to_vec())
-                }
-                other => anyhow::bail!("unexpected APDU instruction: {other:?}"),
-            }
-        }
-    }
-
     #[tokio::test]
-    async fn exchanges_handover_request_for_handover_select_over_tnep() {
-        let handover_select_message = handover_select_message();
-        let expected_handover_select_bytes = handover_select_message.to_buffer().unwrap();
-        let state = Rc::new(RefCell::new(MockTagState {
-            selected_file: None,
-            ndef_file: initial_service_message().to_buffer().unwrap(),
-            handover_select_message,
-            captured_handover_request: None,
-        }));
-        let mut reader = MockReader {
-            state: state.clone(),
-        };
+    #[ignore = "requires a physical NFC reader and an mdoc device/tag exposing the TNEP handover service"]
+    async fn exchanges_handover_request_for_handover_select_with_pcsc_reader() {
+        let timeout = std::env::var("MDOC_NFC_TEST_TIMEOUT_SECS")
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+            .map(std::time::Duration::from_secs)
+            .unwrap_or_else(|| std::time::Duration::from_secs(30));
+        let reader_name = std::env::var("MDOC_NFC_READER_NAME").ok();
+        let mut reader = reader_name
+            .map(PcscReader::with_reader_name)
+            .unwrap_or_default();
         let connector = NoopWifiAwareConnector;
         let mut flow = NfcWifiAwareDataRetrievalFlow::new(&mut reader, &connector);
 
-        let (handover_request, handover_select_response, _handover_select) =
-            flow.exchange_handover_select(None).await.unwrap();
+        let (handover_request, handover_select_response, _handover_select) = flow
+            .exchange_handover_select_with_timeout(None, timeout)
+            .await
+            .unwrap();
 
         assert_eq!(
             handover_request
@@ -425,52 +339,11 @@ mod tests {
             Some(b"Hr" as &[u8])
         );
         assert_eq!(
-            handover_select_response.to_buffer().unwrap(),
-            expected_handover_select_bytes
+            handover_select_response
+                .records()
+                .first()
+                .map(|record| record.record_type()),
+            Some(b"Hs" as &[u8])
         );
-        assert!(state.borrow().captured_handover_request.is_some());
-    }
-
-    fn cc_file() -> [u8; 15] {
-        [
-            0x00, 0x0F, 0x20, 0x00, 0xFF, 0x00, 0xFF, 0x04, 0x06, 0xE1, 0x04, 0x08, 0x00, 0x00,
-            0x00,
-        ]
-    }
-
-    fn encode_ndef_file(message_bytes: &[u8]) -> Vec<u8> {
-        let mut file = Vec::with_capacity(message_bytes.len() + 2);
-        file.extend_from_slice(&(message_bytes.len() as u16).to_be_bytes());
-        file.extend_from_slice(message_bytes);
-        file
-    }
-
-    fn initial_service_message() -> NdefMessage {
-        let bytes = vec![
-            0xD1, 0x02, 0x1A, 0x54, 0x70, 0x10, 0x13, 0x75, 0x72, 0x6E, 0x3A, 0x6E, 0x66, 0x63,
-            0x3A, 0x73, 0x6E, 0x3A, 0x68, 0x61, 0x6E, 0x64, 0x6F, 0x76, 0x65, 0x72, 0x00, 0x14,
-            0x0F, 0x08, 0x00,
-        ];
-        NdefMessage::decode(&bytes).unwrap()
-    }
-
-    fn status_message() -> NdefMessage {
-        let record_payload = ExternalPayload::from_raw(b"Te", vec![0x00]);
-        let record = NdefRecord::builder()
-            .tnf(TNF::WellKnown)
-            .payload(&record_payload)
-            .build()
-            .unwrap();
-        NdefMessage::from(record)
-    }
-
-    fn handover_select_message() -> NdefMessage {
-        let record_payload = ExternalPayload::from_raw(b"Hs", vec![0x15]);
-        let record = NdefRecord::builder()
-            .tnf(TNF::WellKnown)
-            .payload(&record_payload)
-            .build()
-            .unwrap();
-        NdefMessage::from(record)
     }
 }

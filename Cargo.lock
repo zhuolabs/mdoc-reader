@@ -1748,6 +1748,7 @@ dependencies = [
  "minicbor",
  "ndef-rs",
  "nfc-reader",
+ "nfc-reader-pcsc",
  "tnep",
  "tokio",
  "uuid",
