@@ -12,6 +12,7 @@ use webpki::{
 };
 use x509_cert::der::{Decode as _, Encode as _};
 use x509_parser::extensions::{GeneralName, ParsedExtension};
+use x509_parser::parse_x509_crl;
 use x509_parser::prelude::FromDer;
 
 use crate::ValidationError;
@@ -189,9 +190,52 @@ fn extract_crl_uris(cert: &x509_parser::certificate::X509Certificate<'_>) -> Vec
 
 fn parse_crl(crl_bytes: &[u8]) -> Result<CertRevocationList<'static>, ValidationError> {
     let crl_der = decode_pem_or_der(crl_bytes, RemoteDerKind::Crl)?;
-    let crl = OwnedCertRevocationList::from_der(crl_der.as_slice())
-        .map_err(|err| ValidationError::Parse(err.to_string()))?;
+    let crl = OwnedCertRevocationList::from_der(crl_der.as_slice()).map_err(|err| match err {
+        WebPkiError::MalformedExtensions => ValidationError::Parse(
+            describe_crl_malformed_extensions(crl_der.as_slice())
+                .unwrap_or_else(|| err.to_string()),
+        ),
+        _ => ValidationError::Parse(err.to_string()),
+    })?;
     Ok(CertRevocationList::from(crl))
+}
+
+fn describe_crl_malformed_extensions(crl_der: &[u8]) -> Option<String> {
+    let (_, crl) = parse_x509_crl(crl_der).ok()?;
+    let extensions = crl.extensions();
+    if extensions.is_empty() {
+        return Some(
+            "CRL is missing CRL extensions; rustls-webpki requires an RFC 5280 v2 CRL with Authority Key Identifier and CRL Number"
+                .to_string(),
+        );
+    }
+
+    let has_authority_key_identifier = extensions.iter().any(|ext| {
+        matches!(
+            ext.parsed_extension(),
+            ParsedExtension::AuthorityKeyIdentifier(_)
+        )
+    });
+    let has_crl_number = extensions
+        .iter()
+        .any(|ext| matches!(ext.parsed_extension(), ParsedExtension::CRLNumber(_)));
+
+    if has_authority_key_identifier && has_crl_number {
+        return None;
+    }
+
+    let mut missing = Vec::new();
+    if !has_authority_key_identifier {
+        missing.push("Authority Key Identifier");
+    }
+    if !has_crl_number {
+        missing.push("CRL Number");
+    }
+
+    Some(format!(
+        "CRL is missing required RFC 5280 extension(s): {}",
+        missing.join(", ")
+    ))
 }
 
 async fn download_crl(crl_url: &Url) -> Result<CertRevocationList<'static>, ValidationError> {

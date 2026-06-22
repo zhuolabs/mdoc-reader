@@ -1,19 +1,22 @@
 {
-  "iacaCert": "https://trust.dmv.ca.gov/certificates/ca-dmv-iaca-root-ca-crt.cer",
+  "iacaCert": "https://issuer.multipaz.org/issuer/signing_certificate?credential_id=mDL",
   "docRequests": [
     {
       "itemsRequest": {
         "docType": "org.iso.18013.5.1.mDL",
         "nameSpaces": {
           "org.iso.18013.5.1": {
-            "age_over_18": false,
-            "given_name": false,
             "family_name": false,
+            "given_name": false,
+            "birth_date": false,
+            "issue_date": false,
+            "expiry_date": false,
+            "issuing_country": false,
+            "issuing_authority": false,
+            "document_number": false,
             "portrait": false,
-            "resident_address": false
-          },
-          "org.iso.18013.5.1.aamva": {
-            "resident_county": false
+            "driving_privileges": false,
+            "un_distinguishing_sign": false
           }
         }
       }

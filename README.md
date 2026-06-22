@@ -1,13 +1,11 @@
 # mdoc-reader
 
-`mdoc-reader` is an experimental tool for reading and verifying mobile documents (mdoc), such as mobile driver's licenses (mDL), on Windows. It uses NFC and Bluetooth Low Energy (BLE) for device engagement and data retrieval, requests selected identity attributes, and verifies the received data based on ISO/IEC 18013-5.
+`mdoc-reader` is an experimental Windows tool for reading and verifying mobile documents (mdoc), such as mobile driver's licenses (mDL). It uses NFC and Bluetooth Low Energy (BLE) for device engagement and data retrieval, requests selected identity attributes, and verifies the received data in accordance with ISO/IEC 18013-5.
 
-This implementation was built with reference to the ISO/IEC 18013-5 second-edition working draft:
+This implementation was developed with reference to the [ISO/IEC 18013-5 second-edition working draft](https://github.com/ISOWG10/ISO-18013/blob/main/Working%20Documents/Working%20Draft%20ISO_IEC_18013-5_second-edition_CD_ballot_resolution_v4.pdf).
 
-- ISO working draft: https://github.com/ISOWG10/ISO-18013/blob/main/Working%20Documents/Working%20Draft%20ISO_IEC_18013-5_second-edition_CD_ballot_resolution_v4.pdf
+This project is intended for evaluation and experimentation rather than production use. For production support or customization inquiries, contact:
 
-It is intended for evaluation and experimentation.
-If you are considering production use or need customization, please feel free to contact me.
 zhuo@zhuolabs.com
 
 ## Target Environment
