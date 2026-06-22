@@ -1746,8 +1746,10 @@ dependencies = [
  "mdoc-security",
  "mdoc-transport",
  "minicbor",
+ "ndef-rs",
  "nfc-reader",
  "tnep",
+ "tokio",
  "uuid",
 ]
 
