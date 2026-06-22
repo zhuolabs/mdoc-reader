@@ -7,6 +7,15 @@ pub struct BleTransportParams {
     pub ident: [u8; 16],
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WifiAwareTransportParams {
+    pub service_name: String,
+    pub pass_phrase: Option<String>,
+    pub operating_class: Option<u64>,
+    pub channel_number: Option<u64>,
+    pub supported_bands: Option<Vec<u8>>,
+}
+
 #[allow(async_fn_in_trait)]
 pub trait MdocTransport {
     async fn send(&mut self, message: &[u8]) -> Result<()>;

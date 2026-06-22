@@ -1,0 +1,27 @@
+[package]
+name = "mdoc-data-retrieval-flow-nfc-wifi-aware"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = []
+hardware-tests = ["dep:nfc-reader-pcsc"]
+
+[dependencies]
+async-trait = "0.1"
+anyhow = "1"
+uuid = { version = "1", features = ["v4"] }
+connection-handover = { path = "../connection-handover" }
+mdoc-core = { path = "../mdoc-core" }
+mdoc-security = { path = "../mdoc-security" }
+mdoc-transport = { path = "../mdoc-transport" }
+mdoc-data-retrieval-flow = { path = "../mdoc-data-retrieval-flow" }
+nfc-reader = { path = "../nfc-reader" }
+nfc-reader-pcsc = { path = "../nfc-reader-pcsc", optional = true }
+tnep = { path = "../tnep" }
+minicbor = { version = "2.2", features = ["std"] }
+ndef-rs = { version = "0.2.3", features = ["mime"] }
+log = "0.4"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }

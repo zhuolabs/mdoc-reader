@@ -1734,6 +1734,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "mdoc-data-retrieval-flow-nfc-wifi-aware"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "connection-handover",
+ "log",
+ "mdoc-core",
+ "mdoc-data-retrieval-flow",
+ "mdoc-security",
+ "mdoc-transport",
+ "minicbor",
+ "ndef-rs",
+ "nfc-reader",
+ "nfc-reader-pcsc",
+ "tnep",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "mdoc-reader"
 version = "0.1.0"
 dependencies = [

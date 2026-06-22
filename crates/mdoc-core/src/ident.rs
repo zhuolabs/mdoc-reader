@@ -3,13 +3,27 @@ use anyhow::Result;
 use hkdf::Hkdf;
 use sha2::Sha256;
 
-pub fn ble_ident(esender_key: &TaggedCborBytes<CoseKeyPublic>) -> Result<[u8; 16]> {
+fn hkdf_16(
+    esender_key: &TaggedCborBytes<CoseKeyPublic>,
+    salt: Option<&[u8]>,
+    info: &[u8],
+    error_label: &str,
+) -> Result<[u8; 16]> {
     let ikm = minicbor::to_vec(esender_key)?;
-    let hk = Hkdf::<Sha256>::new(None, &ikm);
+    let hk = Hkdf::<Sha256>::new(salt, &ikm);
     let mut out = [0u8; 16];
-    hk.expand(b"BLEIdent", &mut out)
-        .map_err(|_| anyhow::anyhow!("HKDF expand failed for BLEIdent"))?;
+    hk.expand(info, &mut out)
+        .map_err(|_| anyhow::anyhow!("HKDF expand failed for {}", error_label))?;
     Ok(out)
+}
+
+pub fn ble_ident(esender_key: &TaggedCborBytes<CoseKeyPublic>) -> Result<[u8; 16]> {
+    hkdf_16(esender_key, None, b"BLEIdent", "BLEIdent")
+}
+
+pub fn wifi_aware_service_name(esender_key: &TaggedCborBytes<CoseKeyPublic>) -> Result<String> {
+    let ident = hkdf_16(esender_key, Some(&[0x01]), b"", "Wi-Fi Aware service name")?;
+    Ok(ident.iter().map(|b| format!("{:02X}", b)).collect())
 }
 
 #[cfg(test)]
